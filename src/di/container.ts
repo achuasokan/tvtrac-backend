@@ -11,6 +11,9 @@ import { AuthController } from "../modules/auth/controllers/auth.controller.js";
 import { TmdbService } from "../modules/tmdb/services/tmdb.service.js";
 import { TmdbController } from "../modules/tmdb/controllers/tmdb.controller.js";
 
+import { TrackingService } from "../modules/tracking/services/tracking.service.js";
+import { TrackingController } from "../modules/tracking/controllers/tracking.controller.js";
+
 const container = new Container();
 
 container.bind<IAuthRepository>(TYPES.AuthRepository).to(AuthRepository);
@@ -18,5 +21,7 @@ container.bind<IAuthService>(TYPES.AuthService).to(AuthService);
 container.bind<AuthController>(TYPES.AuthController).to(AuthController);
 container.bind<TmdbService>(TYPES.TmdbService).to(TmdbService);
 container.bind<TmdbController>(TYPES.TmdbController).to(TmdbController);
+container.bind<TrackingService>(TYPES.TrackingService).to(TrackingService);
+container.bind<TrackingController>(TYPES.TrackingController).to(TrackingController);
 
 export { container };

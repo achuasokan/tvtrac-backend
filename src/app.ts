@@ -7,6 +7,7 @@ import requestLogger from './middlewares/requestLogger.js'
 import { errorHandler } from './shared/errors/error.middleware.js'
 import authRouter from './modules/auth/routes/auth.route.js'
 import tmdbRoute from './modules/tmdb/routes/tmdb.route.js'
+import trackingRoute from './modules/tracking/routes/tracking.route.js'
 
 const app = express()
 
@@ -22,6 +23,7 @@ app.use(cookieParser())
 
 app.use('/api/auth', authRouter)
 app.use('/api/tmdb', tmdbRoute)
+app.use('/api/tracking', trackingRoute)
 
 app.use(errorHandler)
 
