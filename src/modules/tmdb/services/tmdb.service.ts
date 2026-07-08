@@ -59,25 +59,71 @@ export class TmdbService {
     return this.fetchFromTmdb("/trending/movie/day", { language: "en-US", page });
   }
 
-  async discoverByNetwork(providerId: string, page: string = "1", filterType: string = "tv") {
+  async discoverByNetwork(providerId: string, page: string = "1", filterType: string = "tv", region: string = "US") {
+    // Map Watch Provider IDs from the frontend to TMDB Network IDs (for TV) and Company IDs (for Movies)
+    // This avoids TMDB API timeouts associated with the watch_providers endpoint and returns full original catalogs.
+    const networkMap: Record<string, string> = {
+      "8": "213", // Netflix
+      "9": "1024", // Prime Video
+      "350": "2552", // Apple TV+
+      "337": "2739", // Disney+
+      "15": "453", // Hulu
+      "526": "174", // AMC+ -> AMC
+      "34": "1035", // MGM+
+      "37": "318", // Showtime
+      "1773": "318", // Showtime (Fallback)
+      "1899": "49", // Max -> HBO
+      "386": "3353", // Peacock
+      "531": "4330", // Paramount+
+      "283": "1112", // Crunchyroll
+      "122": "783|3919", // Hotstar -> Star Plus OR Hotstar Specials
+      "43": "315", // Starz
+      "510": "64", // Discovery+ -> Discovery
+      "99": "3167", // Shudder
+      "11": "2531", // MUBI
+      "300": "10864", // Pluto TV
+      "344": "2059", // Rakuten Viki
+    };
+
+    const companyMap: Record<string, string> = {
+      "8": "900", // Netflix
+      "9": "10502", // Amazon Studios
+      "350": "110757", // Apple
+      "337": "2", // Disney
+      "15": "18451", // Hulu
+      "526": "11073", // AMC
+      "34": "21", // MGM
+      "37": "1035", // Showtime
+      "1773": "1035", // Showtime (Fallback)
+      "1899": "3268", // HBO
+      "386": "151608", // Peacock
+      "531": "4", // Paramount
+      "283": "1112", // Crunchyroll
+      "122": "1632", // Hotstar -> Star Studios
+      "43": "16422", // Starz
+      "510": "64", // Discovery
+    };
+
     let endpoint = "/discover/tv";
     const params: Record<string, string> = {
-      with_watch_providers: providerId,
-      watch_region: "US",
       language: "en-US",
       sort_by: "popularity.desc",
       include_adult: "false",
-      "vote_count.gte": "20",
+      "vote_count.gte": "5",
       page,
     };
 
     if (filterType === "movies") {
       endpoint = "/discover/movie";
-    } else if (filterType === "animation") {
-      params.with_genres = "16";
-    } else if (filterType === "anime") {
-      params.with_genres = "16";
-      params.with_original_language = "ja";
+      params.with_companies = companyMap[providerId] || providerId;
+    } else {
+      params.with_networks = networkMap[providerId] || providerId;
+      if (filterType === "animation") {
+        params.with_genres = "16";
+      } else if (filterType === "anime") {
+        params.with_genres = "16";
+        params.with_original_language = "ja";
+      }
     }
 
     return this.fetchFromTmdb(endpoint, params);
@@ -175,6 +221,25 @@ export class TmdbService {
       params["with_original_language"] = language;
     }
 
+    return this.fetchFromTmdb(endpoint, params);
+  }
+
+  async discoverAdvanced(query: any) {
+    const { type, page, ...rest } = query;
+    const endpoint = type === "tv" ? "/discover/tv" : "/discover/movie";
+    
+    const params: Record<string, string> = {
+      page: (page as string) || "1",
+      language: "en-US",
+      include_adult: "false",
+    };
+    
+    for (const [key, value] of Object.entries(rest)) {
+      if (typeof value === "string") {
+        params[key] = value;
+      }
+    }
+    
     return this.fetchFromTmdb(endpoint, params);
   }
 

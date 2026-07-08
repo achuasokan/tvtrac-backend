@@ -44,10 +44,11 @@ export class TmdbController {
       const networkId = req.params.networkId;
       const page = (req.query.page as string) || "1";
       const filter = (req.query.filter as string) || "tv";
+      const region = (req.query.region as string) || "US";
       if (!networkId) {
         return res.status(400).json({ error: "Missing networkId parameter" });
       }
-      const data = await this.tmdbService.discoverByNetwork(networkId, page, filter);
+      const data = await this.tmdbService.discoverByNetwork(networkId, page, filter, region);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Discover by Network Error:", error);
@@ -75,6 +76,16 @@ export class TmdbController {
     } catch (error: any) {
       console.error("TMDB Discover by Genre Error:", error);
       res.status(500).json({ error: error.message || "Failed to discover by genre from TMDB" });
+    }
+  };
+
+  public discoverAdvanced = async (req: Request, res: Response) => {
+    try {
+      const data = await this.tmdbService.discoverAdvanced(req.query);
+      res.json(data);
+    } catch (error: any) {
+      console.error("TMDB Discover Advanced Error:", error);
+      res.status(500).json({ error: error.message || "Failed to discover advanced from TMDB" });
     }
   };
 

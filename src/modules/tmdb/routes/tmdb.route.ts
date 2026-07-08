@@ -11,6 +11,7 @@ tmdbRoute.get("/trending/tv", tmdbController.getTrendingTv);
 tmdbRoute.get("/trending/movie", tmdbController.getTrendingMovies);
 tmdbRoute.get("/network/:networkId", tmdbController.discoverByNetwork);
 tmdbRoute.get("/discover/genre/:genreName", tmdbController.discoverByGenre);
+tmdbRoute.get("/discover/advanced", tmdbController.discoverAdvanced);
 tmdbRoute.get("/search", tmdbController.search);
 tmdbRoute.get("/title/:mediaType/:id", tmdbController.getTitleDetails);
 tmdbRoute.get("/tv/:id/season/:seasonNumber", tmdbController.getSeasonDetails);
