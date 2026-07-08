@@ -4,7 +4,7 @@ export interface ITrackedItem extends Document {
     user: Types.ObjectId;
     tmdbId: string;
     mediaType: string;
-    watchedEpisodes: { season: number; episode: number }[];
+    watchedEpisodes: { season: number; episode: number; watchedAt?: Date }[];
     ignorePreviousEpisodesPrompt: boolean;
     createdAt: Date;
 }
@@ -28,7 +28,8 @@ const trackedItemSchema = new Schema(
         watchedEpisodes: [{
             _id: false,
             season: { type: Number, required: true },
-            episode: { type: Number, required: true }
+            episode: { type: Number, required: true },
+            watchedAt: { type: Date, default: Date.now }
         }],
         ignorePreviousEpisodesPrompt: {
             type: Boolean,

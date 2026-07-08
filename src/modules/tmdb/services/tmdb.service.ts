@@ -29,12 +29,12 @@ export class TmdbService {
         const response = await axios.get(`${this.baseUrl}${endpoint}`, {
           headers,
           params,
-          timeout: 5000,
+          timeout: 15000,
         });
         return response.data;
       } catch (error: any) {
         retries--;
-        const isNetworkError = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || !error.response;
+        const isNetworkError = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED' || !error.response;
         
         if (retries === 0 || !isNetworkError) {
           const errorMsg = error.response?.data?.status_message || error.message;
@@ -66,6 +66,8 @@ export class TmdbService {
       watch_region: "US",
       language: "en-US",
       sort_by: "popularity.desc",
+      include_adult: "false",
+      "vote_count.gte": "20",
       page,
     };
 
@@ -92,7 +94,7 @@ export class TmdbService {
     language?: string
   ) {
     // TMDB Genre ID mappings
-    const genreMaps: Record<string, { movie?: string, tv?: string, company?: string }> = {
+    const genreMaps: Record<string, { movie?: string, tv?: string, company?: string, language?: string }> = {
       "Action": { movie: "28", tv: "10759" }, // TV uses "Action & Adventure"
       "Comedy": { movie: "35", tv: "35" },
       "Sci-Fi": { movie: "878", tv: "10765" }, // TV uses "Sci-Fi & Fantasy"
@@ -101,6 +103,7 @@ export class TmdbService {
       "Drama": { movie: "18", tv: "18" },
       "Animation": { movie: "16", tv: "16" },
       "Documentary": { movie: "99", tv: "99" },
+      "K-Drama": { movie: "18", tv: "18", language: "ko" },
       "Marvel": { company: "420" }, // Marvel Studios
       "DC": { company: "429|9993|128064|173511" }, // DC Entertainment / DC Comics / DC Films / DC Studios
       "Disney": { company: "2" }, // Walt Disney Pictures
@@ -133,6 +136,8 @@ export class TmdbService {
     const params: Record<string, string> = {
       language: "en-US",
       sort_by: actualSortBy,
+      include_adult: "false",
+      "vote_count.gte": "20",
       page
     };
 
@@ -164,7 +169,9 @@ export class TmdbService {
       }
     }
 
-    if (language) {
+    if (map.language) {
+      params["with_original_language"] = map.language;
+    } else if (language) {
       params["with_original_language"] = language;
     }
 

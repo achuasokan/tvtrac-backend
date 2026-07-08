@@ -36,7 +36,7 @@ export class TrackingService {
     if (index > -1) {
       doc.watchedEpisodes.splice(index, 1);
     } else {
-      doc.watchedEpisodes.push({ season, episode });
+      doc.watchedEpisodes.push({ season, episode, watchedAt: new Date() });
       isWatched = true;
     }
     
@@ -60,7 +60,7 @@ export class TrackingService {
       for (const ep of episodes) {
         const exists = doc.watchedEpisodes.some(e => e.season === season && e.episode === ep);
         if (!exists) {
-          doc.watchedEpisodes.push({ season, episode: ep });
+          doc.watchedEpisodes.push({ season, episode: ep, watchedAt: new Date() });
         }
       }
     }
