@@ -41,7 +41,7 @@ export class TmdbController {
 
   public discoverByNetwork = async (req: Request, res: Response) => {
     try {
-      const networkId = req.params.networkId;
+      const networkId = req.params.networkId as string;
       const page = (req.query.page as string) || "1";
       const filter = (req.query.filter as string) || "tv";
       const region = (req.query.region as string) || "US";
@@ -58,14 +58,14 @@ export class TmdbController {
 
   public discoverByGenre = async (req: Request, res: Response) => {
     try {
-      const genreName = req.params.genreName;
+      const genreName = req.params.genreName as string;
       const page = (req.query.page as string) || "1";
       const type = (req.query.type as string) || "movie";
       const sortBy = (req.query.sort_by as string) || "popularity.desc";
-      const minRating = req.query.min_rating as string | undefined;
-      const yearFrom = req.query.year_from as string | undefined;
-      const yearTo = req.query.year_to as string | undefined;
-      const language = req.query.language as string | undefined;
+      const minRating = typeof req.query.min_rating === "string" ? req.query.min_rating : undefined;
+      const yearFrom = typeof req.query.year_from === "string" ? req.query.year_from : undefined;
+      const yearTo = typeof req.query.year_to === "string" ? req.query.year_to : undefined;
+      const language = typeof req.query.language === "string" ? req.query.language : undefined;
       
       if (!genreName) {
         return res.status(400).json({ error: "Missing genreName parameter" });
@@ -92,10 +92,11 @@ export class TmdbController {
   public search = async (req: Request, res: Response) => {
     try {
       const query = req.query.q as string;
+      const page = (req.query.page as string) || "1";
       if (!query) {
         return res.status(400).json({ error: "Missing query parameter 'q'" });
       }
-      const data = await this.tmdbService.search(query);
+      const data = await this.tmdbService.search(query, page);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Search Error:", error);
@@ -105,7 +106,8 @@ export class TmdbController {
 
   public getTitleDetails = async (req: Request, res: Response) => {
     try {
-      const { mediaType, id } = req.params;
+      const mediaType = req.params.mediaType as string;
+      const id = req.params.id as string;
       if (!mediaType || !id) {
         return res.status(400).json({ error: "Missing mediaType or id parameter" });
       }
@@ -119,7 +121,8 @@ export class TmdbController {
 
   public getSeasonDetails = async (req: Request, res: Response) => {
     try {
-      const { id, seasonNumber } = req.params;
+      const id = req.params.id as string;
+      const seasonNumber = req.params.seasonNumber as string;
       if (!id || !seasonNumber) {
         return res.status(400).json({ error: "Missing id or seasonNumber parameter" });
       }
@@ -133,7 +136,7 @@ export class TmdbController {
 
   public getPersonDetails = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       if (!id) {
         return res.status(400).json({ error: "Missing id parameter" });
       }
@@ -147,7 +150,9 @@ export class TmdbController {
 
   public getEpisodeDetails = async (req: Request, res: Response) => {
     try {
-      const { id, seasonNumber, episodeNumber } = req.params;
+      const id = req.params.id as string;
+      const seasonNumber = req.params.seasonNumber as string;
+      const episodeNumber = req.params.episodeNumber as string;
       if (!id || !seasonNumber || !episodeNumber) {
         return res.status(400).json({ error: "Missing id, seasonNumber, or episodeNumber parameter" });
       }
