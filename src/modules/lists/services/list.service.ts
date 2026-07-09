@@ -43,6 +43,14 @@ export class ListService implements IListService {
         return ListMapper.toDTO(list);
     }
 
+    public async reorderListItems(userId: string, listId: string, items: any[]): Promise<ListResponseDTO> {
+        const list = await this.listRepository.reorderListItems(userId, listId, items);
+        if (!list) {
+            throw new Error("List not found or you don't have permission");
+        }
+        return ListMapper.toDTO(list);
+    }
+
     public async deleteList(userId: string, listId: string): Promise<void> {
         const deleted = await this.listRepository.deleteList(userId, listId);
         if (!deleted) {

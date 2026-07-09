@@ -8,6 +8,14 @@ export interface UpdateListDTO {
     description?: string;
 }
 
+export interface ReorderListDTO {
+    items: {
+        tmdbId: string;
+        mediaType: 'movie' | 'tv';
+        addedAt: Date;
+    }[];
+}
+
 export interface AddListItemDTO {
     tmdbId: string;
     mediaType: 'movie' | 'tv';

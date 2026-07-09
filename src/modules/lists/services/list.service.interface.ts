@@ -6,5 +6,6 @@ export interface IListService {
     getUserLists(userId: string): Promise<ListResponseDTO[]>;
     addToList(userId: string, listId: string, tmdbId: string, mediaType: 'movie' | 'tv'): Promise<ListResponseDTO>;
     removeFromList(userId: string, listId: string, tmdbId: string, mediaType: 'movie' | 'tv'): Promise<ListResponseDTO>;
+    reorderListItems(userId: string, listId: string, items: any[]): Promise<ListResponseDTO>;
     deleteList(userId: string, listId: string): Promise<void>;
 }

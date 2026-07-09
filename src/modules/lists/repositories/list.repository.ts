@@ -28,7 +28,7 @@ export class ListRepository implements IListRepository {
     }
 
     public async getUserLists(userId: string): Promise<IList[]> {
-        return await ListModel.find({ user: userId }).sort({ createdAt: -1 }).exec();
+        return await ListModel.find({ user: userId }).sort({ createdAt: 1 }).exec();
     }
 
     public async getListById(userId: string, listId: string): Promise<IList | null> {
@@ -55,6 +55,14 @@ export class ListRepository implements IListRepository {
         list.items = list.items.filter(item => !(item.tmdbId === tmdbId && item.mediaType === mediaType));
         await list.save();
         return list;
+    }
+
+    public async reorderListItems(userId: string, listId: string, items: any[]): Promise<IList | null> {
+        return await ListModel.findOneAndUpdate(
+            { _id: listId, user: userId },
+            { $set: { items } },
+            { new: true, runValidators: true }
+        ).exec();
     }
 
     public async deleteList(userId: string, listId: string): Promise<boolean> {

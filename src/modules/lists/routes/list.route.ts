@@ -13,6 +13,7 @@ listRouter.use(authenticate);
 listRouter.post("/", listController.createList);
 listRouter.get("/", listController.getUserLists);
 listRouter.put("/:id", listController.updateList);
+listRouter.put("/:id/reorder", listController.reorderList);
 listRouter.post("/:id/items", listController.addToList);
 listRouter.delete("/:id/items", listController.removeFromList);
 listRouter.delete("/:id", listController.deleteList);

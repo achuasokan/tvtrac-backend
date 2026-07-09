@@ -2,7 +2,7 @@ import { inject, injectable } from "inversify";
 import { Request, Response } from "express";
 import { TYPES } from "../../../di/types.js";
 import { IListService } from "../services/list.service.interface.js";
-import { CreateListDTO, AddListItemDTO, RemoveListItemDTO, UpdateListDTO } from "../dtos/list.dto.js";
+import { CreateListDTO, AddListItemDTO, RemoveListItemDTO, UpdateListDTO, ReorderListDTO } from "../dtos/list.dto.js";
 import { sendResponse } from "../../../shared/utils/responseHelper.js";
 import { HTTP_STATUS } from "../../../shared/constants/http-status.js";
 import { LIST_MESSAGES } from "../constants/list.messages.js";
@@ -48,6 +48,27 @@ export class ListController {
                 return sendResponse(res, HTTP_STATUS.BAD_REQUEST, LIST_MESSAGES.ERROR_ALREADY_EXISTS);
             }
             return sendResponse(res, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to update list");
+        }
+    };
+
+    public reorderList = async (req: Request, res: Response) => {
+        try {
+            const userId = (req as any).user.userId as string;
+            const listId = req.params.id as string;
+            const dto: ReorderListDTO = req.body;
+
+            if (!dto.items || !Array.isArray(dto.items)) {
+                return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "Items array is required");
+            }
+
+            const list = await this.listService.reorderListItems(userId, listId, dto.items);
+            return sendResponse(res, HTTP_STATUS.OK, "List reordered successfully", list);
+        } catch (error: any) {
+            console.error("Reorder List Error:", error);
+            if (error.message.includes("not found")) {
+                return sendResponse(res, HTTP_STATUS.NOT_FOUND, error.message);
+            }
+            return sendResponse(res, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to reorder list");
         }
     };
 

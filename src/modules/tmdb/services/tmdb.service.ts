@@ -243,12 +243,12 @@ export class TmdbService {
     return this.fetchFromTmdb(endpoint, params);
   }
 
-  async search(query: string) {
+  async search(query: string, page: string = "1") {
     return this.fetchFromTmdb("/search/multi", {
       query,
+      page,
       include_adult: "false",
       language: "en-US",
-      page: "1",
     });
   }
 
