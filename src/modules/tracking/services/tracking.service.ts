@@ -3,7 +3,7 @@ import { TrackedItemModel } from "../models/trackedItem.schema.js";
 
 @injectable()
 export class TrackingService {
-  async toggleWatchedStatus(userId: string, tmdbId: string, mediaType: string) {
+  async toggleWatchedStatus(userId: string, tmdbId: string, mediaType: 'movie' | 'tv') {
     const existing = await TrackedItemModel.findOne({ user: userId, tmdbId, mediaType });
     
     if (existing) {
@@ -15,7 +15,7 @@ export class TrackingService {
     }
   }
 
-  async checkIsWatched(userId: string, tmdbId: string, mediaType: string) {
+  async checkIsWatched(userId: string, tmdbId: string, mediaType: 'movie' | 'tv') {
     const existing = await TrackedItemModel.findOne({ user: userId, tmdbId, mediaType });
     return { 
       watched: !!existing,
@@ -53,8 +53,8 @@ export class TrackingService {
     const allPresent = episodes.every(ep => doc!.watchedEpisodes.some(e => e.season === season && e.episode === ep));
 
     if (allPresent) {
-      // Remove all episodes of this season from the watched list
-      doc.watchedEpisodes = doc.watchedEpisodes.filter(e => !(e.season === season && episodes.includes(e.episode)));
+      // Remove all episodes of this season from the watched list, ensuring we clean up any corrupted 'ghost' episodes
+      doc.watchedEpisodes = doc.watchedEpisodes.filter(e => e.season !== season) as any;
     } else {
       // Add all episodes that aren't already there
       for (const ep of episodes) {
