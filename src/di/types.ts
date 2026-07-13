@@ -9,4 +9,7 @@ export const TYPES = {
     ListRepository: Symbol.for("ListRepository"),
     ListService: Symbol.for("ListService"),
     ListController: Symbol.for("ListController"),
+    UserRepository: Symbol.for("UserRepository"),
+    UserService: Symbol.for("UserService"),
+    UserController: Symbol.for("UserController"),
 };

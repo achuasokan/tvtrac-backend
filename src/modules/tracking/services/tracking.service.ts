@@ -79,4 +79,10 @@ export class TrackingService {
     }
     return { success: true };
   }
+
+  async getWatchHistory(userId: string) {
+    return await TrackedItemModel.find({ user: userId })
+      .sort({ updatedAt: -1 })
+      .limit(50);
+  }
 }

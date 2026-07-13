@@ -42,6 +42,19 @@ const userSchema = new Schema(
             default: USER_ROLE.USER,
         },
 
+        coverPhoto: {
+            type: String,
+            default: "",
+        },
+
+        favoriteShows: [{
+            type: String,
+        }],
+
+        favoriteMovies: [{
+            type: String,
+        }],
+
         isBlocked: {
             type: Boolean,
             default: false,

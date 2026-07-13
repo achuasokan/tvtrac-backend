@@ -20,6 +20,12 @@ import { IListService } from "../modules/lists/services/list.service.interface.j
 import { ListService } from "../modules/lists/services/list.service.js";
 import { ListController } from "../modules/lists/controllers/list.controller.js";
 
+import { IUserRepository } from "../modules/users/repositories/user.repository.interface.js";
+import { UserRepository } from "../modules/users/repositories/user.repository.js";
+import { IUserService } from "../modules/users/services/user.service.interface.js";
+import { UserService } from "../modules/users/services/user.service.js";
+import { UserController } from "../modules/users/controllers/user.controller.js";
+
 const container = new Container();
 
 container.bind<IAuthRepository>(TYPES.AuthRepository).to(AuthRepository);
@@ -33,5 +39,9 @@ container.bind<TrackingController>(TYPES.TrackingController).to(TrackingControll
 container.bind<IListRepository>(TYPES.ListRepository).to(ListRepository);
 container.bind<IListService>(TYPES.ListService).to(ListService);
 container.bind<ListController>(TYPES.ListController).to(ListController);
+
+container.bind<IUserRepository>(TYPES.UserRepository).to(UserRepository);
+container.bind<IUserService>(TYPES.UserService).to(UserService);
+container.bind<UserController>(TYPES.UserController).to(UserController);
 
 export { container };

@@ -91,4 +91,15 @@ export class TrackingController {
       res.status(500).json({ error: "Failed to set ignore prompt setting" });
     }
   };
+
+  public getWatchHistory = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.userId;
+      const result = await this.trackingService.getWatchHistory(userId);
+      res.json({ data: result });
+    } catch (error: any) {
+      console.error("Get Watch History Error:", error);
+      res.status(500).json({ error: "Failed to fetch watch history" });
+    }
+  };
 }
