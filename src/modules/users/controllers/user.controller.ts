@@ -8,12 +8,15 @@ import { USER_MESSAGES } from "../../../shared/constants/user-messages.js";
 import { UserMapper } from "../mappers/user.mapper.js";
 import { UpdateProfileSchema, ToggleFavoriteSchema } from "../dto/user.dto.js";
 
+import { IUserCategorizationService } from "../services/userCategorization.service.interface.js";
+
 import { TYPES } from "../../../di/types.js";
 
 @injectable()
 export class UserController {
     constructor(
-        @inject(TYPES.UserService) private userService: IUserService
+        @inject(TYPES.UserService) private userService: IUserService,
+        @inject(TYPES.UserCategorizationService) private userCategorizationService: IUserCategorizationService
     ) {}
 
     public getProfile = async (req: Request, res: Response, next: NextFunction) => {
@@ -148,6 +151,60 @@ export class UserController {
                 HTTP_STATUS.OK,
                 action === "add" ? "Added to watchlist" : "Removed from watchlist",
                 UserMapper.toProfileResponse(updatedUser)
+            );
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    public getCategorizedShows = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const userId = req.user?.userId as string;
+            const category = req.query.category as string;
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 20;
+
+            if (!category) {
+                return res.status(HTTP_STATUS.BAD_REQUEST).json({
+                    success: false,
+                    message: "Category is required"
+                });
+            }
+
+            const result = await this.userCategorizationService.getCategorizedShows(userId, category, page, limit);
+
+            return sendResponse(
+                res,
+                HTTP_STATUS.OK,
+                "Categorized shows fetched successfully",
+                result
+            );
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    public getCategorizedMovies = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const userId = req.user?.userId as string;
+            const category = req.query.category as string;
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 20;
+
+            if (!category) {
+                return res.status(HTTP_STATUS.BAD_REQUEST).json({
+                    success: false,
+                    message: "Category is required"
+                });
+            }
+
+            const result = await this.userCategorizationService.getCategorizedMovies(userId, category, page, limit);
+
+            return sendResponse(
+                res,
+                HTTP_STATUS.OK,
+                "Categorized movies fetched successfully",
+                result
             );
         } catch (error) {
             next(error);

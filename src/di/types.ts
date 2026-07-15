@@ -3,6 +3,7 @@ export const TYPES = {
     AuthService: Symbol.for("AuthService"),
     AuthController: Symbol.for("AuthController"),
     TmdbService: Symbol.for("TmdbService"),
+    TmdbCacheService: Symbol.for("TmdbCacheService"),
     TmdbController: Symbol.for("TmdbController"),
     TrackingService: Symbol.for("TrackingService"),
     TrackingController: Symbol.for("TrackingController"),
@@ -11,5 +12,6 @@ export const TYPES = {
     ListController: Symbol.for("ListController"),
     UserRepository: Symbol.for("UserRepository"),
     UserService: Symbol.for("UserService"),
+    UserCategorizationService: Symbol.for("UserCategorizationService"),
     UserController: Symbol.for("UserController"),
 };

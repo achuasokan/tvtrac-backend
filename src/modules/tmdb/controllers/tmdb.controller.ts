@@ -1,15 +1,19 @@
 import { inject, injectable } from "inversify";
 import { Request, Response } from "express";
 import { TmdbService } from "../services/tmdb.service.js";
+import { ITmdbCacheService } from "../services/tmdbCache.service.interface.js";
 import { TYPES } from "../../../di/types.js";
 
 @injectable()
 export class TmdbController {
-  constructor(@inject(TYPES.TmdbService) private tmdbService: TmdbService) {}
+  constructor(
+    @inject(TYPES.TmdbService) private tmdbService: TmdbService,
+    @inject(TYPES.TmdbCacheService) private tmdbCacheService: ITmdbCacheService
+  ) {}
 
   public getTrending = async (req: Request, res: Response) => {
     try {
-      const data = await this.tmdbService.getTrending();
+      const data = await this.tmdbCacheService.getCachedTrending();
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Trending Error:", error);
@@ -20,7 +24,7 @@ export class TmdbController {
   public getTrendingTv = async (req: Request, res: Response) => {
     try {
       const page = (req.query.page as string) || "1";
-      const data = await this.tmdbService.getTrendingTv(page);
+      const data = await this.tmdbCacheService.getCachedTrendingTv(page);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Trending TV Error:", error);
@@ -31,7 +35,7 @@ export class TmdbController {
   public getTrendingMovies = async (req: Request, res: Response) => {
     try {
       const page = (req.query.page as string) || "1";
-      const data = await this.tmdbService.getTrendingMovies(page);
+      const data = await this.tmdbCacheService.getCachedTrendingMovies(page);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Trending Movies Error:", error);
@@ -48,7 +52,7 @@ export class TmdbController {
       if (!networkId) {
         return res.status(400).json({ error: "Missing networkId parameter" });
       }
-      const data = await this.tmdbService.discoverByNetwork(networkId, page, filter, region);
+      const data = await this.tmdbCacheService.getCachedDiscoverByNetwork(networkId, page, filter, region);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Discover by Network Error:", error);
@@ -71,7 +75,7 @@ export class TmdbController {
         return res.status(400).json({ error: "Missing genreName parameter" });
       }
       
-      const data = await this.tmdbService.discoverByGenreName(genreName, page, type, sortBy, minRating, yearFrom, yearTo, language);
+      const data = await this.tmdbCacheService.getCachedDiscoverByGenreName(genreName, page, type, sortBy, minRating, yearFrom, yearTo, language);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Discover by Genre Error:", error);
@@ -81,7 +85,7 @@ export class TmdbController {
 
   public discoverAdvanced = async (req: Request, res: Response) => {
     try {
-      const data = await this.tmdbService.discoverAdvanced(req.query);
+      const data = await this.tmdbCacheService.getCachedDiscoverAdvanced(req.query);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Discover Advanced Error:", error);
@@ -111,7 +115,7 @@ export class TmdbController {
       if (!mediaType || !id) {
         return res.status(400).json({ error: "Missing mediaType or id parameter" });
       }
-      const data = await this.tmdbService.getTitleDetails(mediaType, id);
+      const data = await this.tmdbCacheService.getCachedTitleDetails(mediaType, id);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Title Details Error:", error);
@@ -126,7 +130,7 @@ export class TmdbController {
       if (!id || !seasonNumber) {
         return res.status(400).json({ error: "Missing id or seasonNumber parameter" });
       }
-      const data = await this.tmdbService.getSeasonDetails(id, seasonNumber);
+      const data = await this.tmdbCacheService.getCachedSeasonDetails(id, seasonNumber);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Season Details Error:", error);
@@ -140,7 +144,7 @@ export class TmdbController {
       if (!id) {
         return res.status(400).json({ error: "Missing id parameter" });
       }
-      const data = await this.tmdbService.getPersonDetails(id);
+      const data = await this.tmdbCacheService.getCachedPersonDetails(id);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Person Details Error:", error);
@@ -156,7 +160,7 @@ export class TmdbController {
       if (!id || !seasonNumber || !episodeNumber) {
         return res.status(400).json({ error: "Missing id, seasonNumber, or episodeNumber parameter" });
       }
-      const data = await this.tmdbService.getEpisodeDetails(id, seasonNumber, episodeNumber);
+      const data = await this.tmdbCacheService.getCachedEpisodeDetails(id, seasonNumber, episodeNumber);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Episode Details Error:", error);

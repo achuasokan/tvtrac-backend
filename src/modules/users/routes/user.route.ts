@@ -21,5 +21,7 @@ userRouter.post("/favorites", userController.toggleFavorite);
 userRouter.delete("/favorites", userController.toggleFavorite);
 userRouter.post("/watchlist", userController.toggleWatchlist);
 userRouter.delete("/watchlist", userController.toggleWatchlist);
+userRouter.get("/watchlist/shows/categorized", userController.getCategorizedShows);
+userRouter.get("/watchlist/movies/categorized", userController.getCategorizedMovies);
 
 export default userRouter;
