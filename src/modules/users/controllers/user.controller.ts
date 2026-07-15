@@ -120,7 +120,7 @@ export class UserController {
         try {
             const userId = req.user?.userId as string;
             const { tmdbId, type } = ToggleFavoriteSchema.parse(req.body);
-            const action = req.path.includes("remove") ? "remove" : "add";
+            const action = req.method === "DELETE" ? "remove" : "add";
 
             const updatedUser = await this.userService.toggleFavorite(userId, type, tmdbId, action);
             
@@ -128,6 +128,25 @@ export class UserController {
                 res,
                 HTTP_STATUS.OK,
                 action === "add" ? USER_MESSAGES.FAVORITE_ADDED : USER_MESSAGES.FAVORITE_REMOVED,
+                UserMapper.toProfileResponse(updatedUser)
+            );
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    public toggleWatchlist = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const userId = req.user?.userId as string;
+            const { tmdbId, type } = ToggleFavoriteSchema.parse(req.body); // We can reuse ToggleFavoriteSchema here or ToggleWatchlistSchema since they are identical
+            const action = req.method === "DELETE" ? "remove" : "add";
+
+            const updatedUser = await this.userService.toggleWatchlist(userId, type, tmdbId, action);
+            
+            return sendResponse(
+                res,
+                HTTP_STATUS.OK,
+                action === "add" ? "Added to watchlist" : "Removed from watchlist",
                 UserMapper.toProfileResponse(updatedUser)
             );
         } catch (error) {

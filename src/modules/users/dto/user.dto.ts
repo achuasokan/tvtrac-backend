@@ -20,3 +20,10 @@ export const ToggleFavoriteSchema = z.object({
 });
 
 export type ToggleFavoriteDto = z.infer<typeof ToggleFavoriteSchema>;
+
+export const ToggleWatchlistSchema = z.object({
+    tmdbId: z.string().min(1, "tmdbId is required"),
+    type: z.enum(["shows", "movies"]),
+});
+
+export type ToggleWatchlistDto = z.infer<typeof ToggleWatchlistSchema>;

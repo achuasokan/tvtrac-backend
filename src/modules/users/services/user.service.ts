@@ -108,4 +108,24 @@ export class UserService implements IUserService {
 
         return updatedUser;
     }
+
+    async toggleWatchlist(userId: string, type: 'shows' | 'movies', tmdbId: string, action: 'add' | 'remove'): Promise<UserDocument> {
+        const user = await this.userRepository.findById(userId);
+        if (!user) {
+            throw new AppError(USER_MESSAGES.USER_NOT_FOUND, HTTP_STATUS.NOT_FOUND);
+        }
+
+        let updatedUser;
+        if (action === 'add') {
+            updatedUser = await this.userRepository.addWatchlist(userId, type, tmdbId);
+        } else {
+            updatedUser = await this.userRepository.removeWatchlist(userId, type, tmdbId);
+        }
+
+        if (!updatedUser) {
+            throw new AppError(USER_MESSAGES.USER_NOT_FOUND, HTTP_STATUS.NOT_FOUND);
+        }
+
+        return updatedUser;
+    }
 }

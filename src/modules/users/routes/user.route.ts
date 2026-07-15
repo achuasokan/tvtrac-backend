@@ -19,5 +19,7 @@ userRouter.patch("/profile/cover-photo", upload.single("coverPhoto"), userContro
 userRouter.delete("/profile/cover-photo", userController.deleteCoverPhoto);
 userRouter.post("/favorites", userController.toggleFavorite);
 userRouter.delete("/favorites", userController.toggleFavorite);
+userRouter.post("/watchlist", userController.toggleWatchlist);
+userRouter.delete("/watchlist", userController.toggleWatchlist);
 
 export default userRouter;

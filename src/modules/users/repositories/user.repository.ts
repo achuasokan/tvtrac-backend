@@ -33,4 +33,22 @@ export class UserRepository implements IUserRepository {
             { new: true }
         );
     }
+
+    async addWatchlist(id: string, type: 'shows' | 'movies', tmdbId: string): Promise<UserDocument | null> {
+        const field = type === 'shows' ? 'watchlistShows' : 'watchlistMovies';
+        return await UserModel.findByIdAndUpdate(
+            id,
+            { $addToSet: { [field]: tmdbId } },
+            { new: true }
+        );
+    }
+
+    async removeWatchlist(id: string, type: 'shows' | 'movies', tmdbId: string): Promise<UserDocument | null> {
+        const field = type === 'shows' ? 'watchlistShows' : 'watchlistMovies';
+        return await UserModel.findByIdAndUpdate(
+            id,
+            { $pull: { [field]: tmdbId } },
+            { new: true }
+        );
+    }
 }

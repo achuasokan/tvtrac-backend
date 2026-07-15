@@ -11,6 +11,8 @@ export class UserMapper {
             coverPhoto: (user as any).coverPhoto || "",
             favoriteShows: (user as any).favoriteShows || [],
             favoriteMovies: (user as any).favoriteMovies || [],
+            watchlistShows: (user as any).watchlistShows || [],
+            watchlistMovies: (user as any).watchlistMovies || [],
             role: user.role,
             createdAt: user.createdAt,
         };

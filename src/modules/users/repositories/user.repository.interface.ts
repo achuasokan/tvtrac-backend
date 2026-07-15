@@ -6,4 +6,6 @@ export interface IUserRepository {
     update(id: string, data: Partial<any>): Promise<UserDocument | null>;
     addFavorite(id: string, type: 'shows' | 'movies', tmdbId: string): Promise<UserDocument | null>;
     removeFavorite(id: string, type: 'shows' | 'movies', tmdbId: string): Promise<UserDocument | null>;
+    addWatchlist(id: string, type: 'shows' | 'movies', tmdbId: string): Promise<UserDocument | null>;
+    removeWatchlist(id: string, type: 'shows' | 'movies', tmdbId: string): Promise<UserDocument | null>;
 }

@@ -55,6 +55,14 @@ const userSchema = new Schema(
             type: String,
         }],
 
+        watchlistShows: [{
+            type: String,
+        }],
+
+        watchlistMovies: [{
+            type: String,
+        }],
+
         isBlocked: {
             type: Boolean,
             default: false,

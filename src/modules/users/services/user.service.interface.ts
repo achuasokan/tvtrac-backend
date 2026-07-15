@@ -9,4 +9,5 @@ export interface IUserService {
     deleteAvatar(userId: string): Promise<UserDocument>;
     deleteCoverPhoto(userId: string): Promise<UserDocument>;
     toggleFavorite(userId: string, type: 'shows' | 'movies', tmdbId: string, action: 'add' | 'remove'): Promise<UserDocument>;
+    toggleWatchlist(userId: string, type: 'shows' | 'movies', tmdbId: string, action: 'add' | 'remove'): Promise<UserDocument>;
 }
