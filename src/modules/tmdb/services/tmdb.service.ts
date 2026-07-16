@@ -257,7 +257,8 @@ export class TmdbService {
       throw new Error("Invalid media type");
     }
     return this.fetchFromTmdb(`/${mediaType}/${id}`, {
-      append_to_response: "credits,videos,similar,watch/providers",
+      append_to_response: "credits,videos,similar,watch/providers,images",
+      include_image_language: "en,null",
       language: "en-US",
     });
   }
