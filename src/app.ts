@@ -10,6 +10,7 @@ import tmdbRoute from './modules/tmdb/routes/tmdb.route.js'
 import trackingRoute from './modules/tracking/routes/tracking.route.js'
 import listRouter from './modules/lists/routes/list.route.js'
 import userRouter from './modules/users/routes/user.route.js'
+import youtubeRouter from './modules/youtube/routes/youtube.route.js'
 
 const app = express()
 
@@ -28,6 +29,7 @@ app.use('/api/tmdb', tmdbRoute)
 app.use('/api/tracking', trackingRoute)
 app.use('/api/lists', listRouter)
 app.use('/api/users', userRouter)
+app.use('/api/youtube', youtubeRouter)
 
 app.use(errorHandler)
 
