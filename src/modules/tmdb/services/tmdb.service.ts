@@ -251,16 +251,31 @@ export class TmdbService {
       language: "en-US",
     });
   }
-
   async getTitleDetails(mediaType: string, id: string) {
     if (mediaType !== "tv" && mediaType !== "movie") {
       throw new Error("Invalid media type");
     }
-    return this.fetchFromTmdb(`/${mediaType}/${id}`, {
-      append_to_response: "credits,videos,similar,watch/providers,images",
+    const details = await this.fetchFromTmdb(`/${mediaType}/${id}`, {
+      append_to_response: "credits,videos,similar,recommendations,watch/providers,images,external_ids",
       include_image_language: "en,null",
       language: "en-US",
     });
+
+    if (details?.external_ids?.imdb_id) {
+      try {
+        const omdbKey = process.env.OMDB_API_KEY;
+        if (omdbKey) {
+          const omdbResponse = await axios.get(`https://www.omdbapi.com/?i=${details.external_ids.imdb_id}&apikey=${omdbKey}`);
+          if (omdbResponse.data && omdbResponse.data.Response !== "False") {
+            details.omdb = omdbResponse.data;
+          }
+        }
+      } catch (e) {
+        console.error("OMDB Fetch Error", e);
+      }
+    }
+
+    return details;
   }
 
   async getSeasonDetails(tvId: string, seasonNumber: string) {
