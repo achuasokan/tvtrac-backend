@@ -167,4 +167,18 @@ export class TmdbController {
       res.status(500).json({ error: error.message || "Failed to fetch episode details from TMDB" });
     }
   };
+  public getCollection = async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      if (!id) {
+        return res.status(400).json({ error: "Missing id parameter" });
+      }
+      // Assuming we just call the tmdbService directly for now, no cache needed yet.
+      const data = await this.tmdbService.getCollection(id);
+      res.json(data);
+    } catch (error: any) {
+      console.error("TMDB Collection Details Error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch collection details from TMDB" });
+    }
+  };
 }

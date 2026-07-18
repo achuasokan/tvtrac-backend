@@ -149,6 +149,16 @@ export class TmdbService {
       "Drama": { movie: "18", tv: "18" },
       "Animation": { movie: "16", tv: "16" },
       "Documentary": { movie: "99", tv: "99" },
+      "Family": { movie: "10751", tv: "10751" },
+      "Kids": { movie: "10751", tv: "10762" },
+      "Mystery": { movie: "9648", tv: "9648" },
+      "News": { tv: "10763" },
+      "Reality": { tv: "10764" },
+      "Sci-Fi & Fantasy": { tv: "10765" },
+      "Soap": { tv: "10766" },
+      "Talk": { tv: "10767" },
+      "War & Politics": { tv: "10768" },
+      "Western": { movie: "37", tv: "37" },
       "K-Drama": { movie: "18", tv: "18", language: "ko" },
       "Marvel": { company: "420" }, // Marvel Studios
       "DC": { company: "429|9993|128064|173511" }, // DC Entertainment / DC Comics / DC Films / DC Studios
@@ -167,10 +177,18 @@ export class TmdbService {
       throw new Error(`Genre '${genreName}' not recognized.`);
     }
 
-    const endpoint = type === "tv" ? "/discover/tv" : "/discover/movie";
+    // Fallback logic: if requested type is missing but the other exists, switch to the other
+    let actualType = type;
+    if (actualType === "movie" && !map.movie && map.tv) {
+      actualType = "tv";
+    } else if (actualType === "tv" && !map.tv && map.movie) {
+      actualType = "movie";
+    }
+
+    const endpoint = actualType === "tv" ? "/discover/tv" : "/discover/movie";
     
     let actualSortBy = sortBy;
-    if (type === "tv") {
+    if (actualType === "tv") {
       if (actualSortBy.includes("primary_release_date")) {
         actualSortBy = actualSortBy.replace("primary_release_date", "first_air_date");
       }
@@ -190,7 +208,7 @@ export class TmdbService {
     if (map.company) {
       params.with_companies = map.company;
     } else {
-      params.with_genres = type === "tv" ? map.tv! : map.movie!;
+      params.with_genres = actualType === "tv" ? map.tv! : map.movie!;
     }
 
     if (minRating) {
@@ -200,13 +218,13 @@ export class TmdbService {
     }
 
     if (yearFrom && yearTo && yearFrom === yearTo) {
-      if (type === "tv") {
+      if (actualType === "tv") {
         params["first_air_date_year"] = yearFrom;
       } else {
         params["primary_release_year"] = yearFrom;
       }
     } else {
-      if (type === "tv") {
+      if (actualType === "tv") {
         if (yearFrom) params["first_air_date.gte"] = `${yearFrom}-01-01`;
         if (yearTo) params["first_air_date.lte"] = `${yearTo}-12-31`;
       } else {
@@ -294,6 +312,12 @@ export class TmdbService {
   async getPersonDetails(personId: string) {
     return this.fetchFromTmdb(`/person/${personId}`, {
       append_to_response: "combined_credits",
+      language: "en-US",
+    });
+  }
+
+  async getCollection(collectionId: string) {
+    return this.fetchFromTmdb(`/collection/${collectionId}`, {
       language: "en-US",
     });
   }

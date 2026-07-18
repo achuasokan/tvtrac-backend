@@ -18,4 +18,6 @@ tmdbRoute.get("/tv/:id/season/:seasonNumber", tmdbController.getSeasonDetails);
 tmdbRoute.get("/tv/:id/season/:seasonNumber/episode/:episodeNumber", tmdbController.getEpisodeDetails);
 tmdbRoute.get("/person/:id", tmdbController.getPersonDetails);
 
+tmdbRoute.get("/collection/:id", tmdbController.getCollection);
+
 export default tmdbRoute;
