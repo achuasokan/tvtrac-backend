@@ -43,6 +43,37 @@ export class TmdbController {
     }
   };
 
+  public getCompany = async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id;
+      if (!id) return res.status(400).json({ error: "Missing company ID" });
+      const data = await this.tmdbCacheService.getCachedCompany(id);
+      res.json(data);
+    } catch (error: any) {
+      console.error("TMDB Get Company Error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch company details" });
+    }
+  };
+
+  public discoverByCompany = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.params.companyId as string;
+      const page = (req.query.page as string) || "1";
+      const type = (req.query.type as string) || "movie";
+      const sortBy = (req.query.sort_by as string) || "popularity.desc";
+      const minRating = typeof req.query.min_rating === "string" ? req.query.min_rating : undefined;
+      const yearFrom = typeof req.query.year_from === "string" ? req.query.year_from : undefined;
+      const yearTo = typeof req.query.year_to === "string" ? req.query.year_to : undefined;
+      const language = typeof req.query.language === "string" ? req.query.language : undefined;
+      if (!companyId) return res.status(400).json({ error: "Missing company ID" });
+      const data = await this.tmdbCacheService.getCachedDiscoverByCompany(companyId, page, type, sortBy, minRating, yearFrom, yearTo, language);
+      res.json(data);
+    } catch (error: any) {
+      console.error("TMDB Discover by Company Error:", error);
+      res.status(500).json({ error: error.message || "Failed to discover by company" });
+    }
+  };
+
   public discoverByNetwork = async (req: Request, res: Response) => {
     try {
       const networkId = req.params.networkId as string;

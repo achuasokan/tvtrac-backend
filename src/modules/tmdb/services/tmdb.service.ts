@@ -59,6 +59,10 @@ export class TmdbService {
     return this.fetchFromTmdb("/trending/movie/day", { language: "en-US", page });
   }
 
+  async getCompany(id: string) {
+    return this.fetchFromTmdb(`/company/${id}`);
+  }
+
   async discoverByNetwork(providerId: string, page: string = "1", filterType: string = "tv", region: string = "US") {
     // Map Watch Provider IDs from the frontend to TMDB Network IDs (for TV) and Company IDs (for Movies)
     // This avoids TMDB API timeouts associated with the watch_providers endpoint and returns full original catalogs.
@@ -160,16 +164,34 @@ export class TmdbService {
       "War & Politics": { tv: "10768" },
       "Western": { movie: "37", tv: "37" },
       "K-Drama": { movie: "18", tv: "18", language: "ko" },
-      "Marvel": { company: "420" }, // Marvel Studios
-      "DC": { company: "429|9993|128064|173511" }, // DC Entertainment / DC Comics / DC Films / DC Studios
-      "Disney": { company: "2" }, // Walt Disney Pictures
-      "Pixar": { company: "3" }, // Pixar
-      "Star Wars": { company: "1" }, // Lucasfilm
+      "Marvel": { company: "420" },
+      "DC": { company: "429|9993|128064|173511" },
+      "Disney": { company: "2" },
+      "Pixar": { company: "3" },
       "A24": { company: "41077" },
-      "HBO": { company: "3268" },
-      "James Bond": { company: "7576" }, // Eon Productions
+      "HBO": { company: "49|3268" },
       "Universal": { company: "33" },
-      "WB": { company: "17|174" }
+      "WB": { company: "174" },
+      "Star Wars": { company: "1" },
+      "James Bond": { company: "6194" },
+      
+      // New Studios from Screenshot
+      "20th Century Studios": { company: "20" },
+      "Castle Rock Entertainment": { company: "97" },
+      "Columbia Pictures": { company: "5" },
+      "DreamWorks Pictures": { company: "7|11473" },
+      "Focus Features": { company: "10146" },
+      "Lucasfilm Ltd.": { company: "1" },
+      "Marvel Studios": { company: "420" },
+      "New Line Cinema": { company: "12" },
+      "Paramount Pictures": { company: "4" },
+      "Searchlight Pictures": { company: "43" },
+      "Sony Pictures": { company: "5752" },
+      "Studio Ghibli": { company: "10342" },
+      "TriStar Pictures": { company: "559" },
+      "Universal Pictures": { company: "33" },
+      "Walt Disney Pictures": { company: "2" },
+      "Warner Bros. Pictures": { company: "174" }
     };
 
     const map = genreMaps[genreName];
@@ -320,5 +342,22 @@ export class TmdbService {
     return this.fetchFromTmdb(`/collection/${collectionId}`, {
       language: "en-US",
     });
+  }
+
+  async discoverByCompany(companyId: string, page: string = "1", type: string = "movie", sortBy: string = "popularity.desc", minRating?: string, yearFrom?: string, yearTo?: string, language?: string) {
+    const params: Record<string, string> = {
+      with_companies: companyId,
+      sort_by: sortBy,
+      page,
+      "vote_count.gte": "10",
+      language: language || "en-US",
+    };
+    if (minRating) params["vote_average.gte"] = minRating;
+    if (yearFrom && type === "movie") params["primary_release_date.gte"] = `${yearFrom}-01-01`;
+    if (yearTo && type === "movie") params["primary_release_date.lte"] = `${yearTo}-12-31`;
+    if (yearFrom && type === "tv") params["first_air_date.gte"] = `${yearFrom}-01-01`;
+    if (yearTo && type === "tv") params["first_air_date.lte"] = `${yearTo}-12-31`;
+    const endpoint = type === "tv" ? "/discover/tv" : "/discover/movie";
+    return this.fetchFromTmdb(endpoint, params);
   }
 }

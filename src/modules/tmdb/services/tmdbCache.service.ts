@@ -81,4 +81,13 @@ export class TmdbCacheService implements ITmdbCacheService {
     async getCachedPersonDetails(personId: string) {
         return this.getOrSetCache(personId, "person", () => this.tmdbService.getPersonDetails(personId));
     }
+
+    async getCachedCompany(companyId: string) {
+        return this.getOrSetCache(companyId, "company", () => this.tmdbService.getCompany(companyId));
+    }
+
+    async getCachedDiscoverByCompany(companyId: string, page: string = "1", type: string = "movie", sortBy: string = "popularity.desc", minRating?: string, yearFrom?: string, yearTo?: string, language?: string) {
+        const key = `discover_company_${companyId}_type_${type}_page_${page}_sort_${sortBy}_minRating_${minRating || ''}_yearFrom_${yearFrom || ''}_yearTo_${yearTo || ''}_lang_${language || ''}`;
+        return this.getOrSetCache(key, "list", () => this.tmdbService.discoverByCompany(companyId, page, type, sortBy, minRating, yearFrom, yearTo, language));
+    }
 }

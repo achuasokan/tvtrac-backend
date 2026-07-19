@@ -9,4 +9,6 @@ export interface ITmdbCacheService {
     getCachedSeasonDetails(tvId: string, seasonNumber: string): Promise<any>;
     getCachedEpisodeDetails(tvId: string, seasonNumber: string, episodeNumber: string): Promise<any>;
     getCachedPersonDetails(personId: string): Promise<any>;
+    getCachedCompany(companyId: string): Promise<any>;
+    getCachedDiscoverByCompany(companyId: string, page?: string, type?: string, sortBy?: string, minRating?: string, yearFrom?: string, yearTo?: string, language?: string): Promise<any>;
 }
