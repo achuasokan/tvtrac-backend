@@ -74,6 +74,21 @@ export class TmdbController {
     }
   };
 
+  public discoverByKeyword = async (req: Request, res: Response) => {
+    try {
+      const keywordId = req.params.keywordId as string;
+      const page = (req.query.page as string) || "1";
+      const type = (req.query.type as string) || "movie";
+      const sortBy = (req.query.sort_by as string) || "popularity.desc";
+      if (!keywordId) return res.status(400).json({ error: "Missing keyword ID" });
+      const data = await this.tmdbCacheService.getCachedDiscoverByKeyword(keywordId, page, type, sortBy);
+      res.json(data);
+    } catch (error: any) {
+      console.error("TMDB Discover by Keyword Error:", error);
+      res.status(500).json({ error: error.message || "Failed to discover by keyword" });
+    }
+  };
+
   public discoverByNetwork = async (req: Request, res: Response) => {
     try {
       const networkId = req.params.networkId as string;

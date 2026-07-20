@@ -360,4 +360,15 @@ export class TmdbService {
     const endpoint = type === "tv" ? "/discover/tv" : "/discover/movie";
     return this.fetchFromTmdb(endpoint, params);
   }
+  async discoverByKeyword(keywordId: string, page: string = "1", type: string = "movie", sortBy: string = "popularity.desc") {
+    const params: Record<string, string> = {
+      with_keywords: keywordId,
+      sort_by: sortBy,
+      page,
+      "vote_count.gte": "10",
+      language: "en-US",
+    };
+    const endpoint = type === "tv" ? "/discover/tv" : "/discover/movie";
+    return this.fetchFromTmdb(endpoint, params);
+  }
 }

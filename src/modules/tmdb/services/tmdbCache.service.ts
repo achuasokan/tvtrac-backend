@@ -90,4 +90,9 @@ export class TmdbCacheService implements ITmdbCacheService {
         const key = `discover_company_${companyId}_type_${type}_page_${page}_sort_${sortBy}_minRating_${minRating || ''}_yearFrom_${yearFrom || ''}_yearTo_${yearTo || ''}_lang_${language || ''}`;
         return this.getOrSetCache(key, "list", () => this.tmdbService.discoverByCompany(companyId, page, type, sortBy, minRating, yearFrom, yearTo, language));
     }
+
+    async getCachedDiscoverByKeyword(keywordId: string, page: string = "1", type: string = "movie", sortBy: string = "popularity.desc") {
+        const key = `discover_keyword_${keywordId}_type_${type}_page_${page}_sort_${sortBy}`;
+        return this.getOrSetCache(key, "list", () => this.tmdbService.discoverByKeyword(keywordId, page, type, sortBy));
+    }
 }
