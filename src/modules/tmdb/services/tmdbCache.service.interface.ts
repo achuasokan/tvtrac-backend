@@ -12,4 +12,5 @@ export interface ITmdbCacheService {
     getCachedCompany(companyId: string): Promise<any>;
     getCachedDiscoverByCompany(companyId: string, page?: string, type?: string, sortBy?: string, minRating?: string, yearFrom?: string, yearTo?: string, language?: string): Promise<any>;
     getCachedDiscoverByKeyword(keywordId: string, page?: string, type?: string, sortBy?: string): Promise<any>;
+    getCachedCollection(collectionId: string): Promise<any>;
 }

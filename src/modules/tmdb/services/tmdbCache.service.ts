@@ -95,4 +95,8 @@ export class TmdbCacheService implements ITmdbCacheService {
         const key = `discover_keyword_${keywordId}_type_${type}_page_${page}_sort_${sortBy}`;
         return this.getOrSetCache(key, "list", () => this.tmdbService.discoverByKeyword(keywordId, page, type, sortBy));
     }
+
+    async getCachedCollection(collectionId: string) {
+        return this.getOrSetCache(`collection_${collectionId}`, "collection", () => this.tmdbService.getCollection(collectionId));
+    }
 }

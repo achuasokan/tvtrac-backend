@@ -105,29 +105,121 @@ export class TrackingService {
     }
     return false;
   }
+
+  private async getAllReleasedEpisodes(tmdbId: string) {
+    const details = await this.tmdbService.getTitleDetails("tv", tmdbId);
+    const seasons = (details.seasons || []).filter((s: { season_number: number }) => s.season_number > 0);
+    const now = new Date();
+    const episodes: { season: number; episode: number; runtime: number }[] = [];
+
+    for (const season of seasons) {
+      try {
+        const seasonDetails = await this.tmdbService.getSeasonDetails(tmdbId, String(season.season_number));
+        for (const ep of seasonDetails.episodes || []) {
+          if (ep.air_date && new Date(ep.air_date) <= now) {
+            episodes.push({
+              season: season.season_number,
+              episode: ep.episode_number,
+              runtime: ep.runtime > 0 ? ep.runtime : 0,
+            });
+          }
+        }
+      } catch {
+        // skip unavailable seasons
+      }
+    }
+
+    return episodes;
+  }
+
+  private isFullyWatched(
+    watchedEpisodes: { season: number; episode: number }[],
+    releasedEpisodes: { season: number; episode: number }[],
+  ) {
+    if (releasedEpisodes.length === 0) return false;
+    return releasedEpisodes.every(ep =>
+      watchedEpisodes.some(w => w.season === ep.season && w.episode === ep.episode),
+    );
+  }
+
   async toggleWatchedStatus(userId: string, tmdbId: string, mediaType: 'movie' | 'tv', runtime?: number) {
-    const existing = await TrackedItemModel.findOne({ user: userId, tmdbId, mediaType });
-    
-    if (existing) {
-      await TrackedItemModel.deleteOne({ _id: existing._id });
-      return { watched: false };
-    } else {
+    if (mediaType === 'movie') {
+      const existing = await TrackedItemModel.findOne({ user: userId, tmdbId, mediaType });
+      if (existing) {
+        await TrackedItemModel.deleteOne({ _id: existing._id });
+        return { watched: false };
+      }
+
       await TrackedItemModel.create({
         user: userId,
         tmdbId,
         mediaType,
-        movieRuntime: mediaType === 'movie' ? (runtime || 0) : 0,
+        movieRuntime: runtime || 0,
       });
       return { watched: true };
     }
+
+    const existing = await TrackedItemModel.findOne({ user: userId, tmdbId, mediaType: 'tv' });
+    const releasedEpisodes = await this.getAllReleasedEpisodes(tmdbId);
+    const episodeRuntime = await this.resolveEpisodeRuntime(tmdbId, runtime);
+    const currentlyFullyWatched = existing
+      ? this.isFullyWatched(existing.watchedEpisodes, releasedEpisodes)
+      : false;
+
+    if (currentlyFullyWatched && existing) {
+      await TrackedItemModel.deleteOne({ _id: existing._id });
+      return { watched: false, watchedEpisodes: [] };
+    }
+
+    const watchedEpisodes = releasedEpisodes.map(ep => ({
+      season: ep.season,
+      episode: ep.episode,
+      watchedAt: new Date(),
+      runtime: ep.runtime || episodeRuntime,
+    }));
+
+    if (existing) {
+      existing.watchedEpisodes = watchedEpisodes as any;
+      if (episodeRuntime > 0) existing.episodeRuntime = episodeRuntime;
+      await existing.save();
+    } else {
+      await TrackedItemModel.create({
+        user: userId,
+        tmdbId,
+        mediaType: 'tv',
+        watchedEpisodes,
+        episodeRuntime,
+      });
+    }
+
+    return { watched: true, watchedEpisodes };
   }
 
   async checkIsWatched(userId: string, tmdbId: string, mediaType: 'movie' | 'tv') {
     const existing = await TrackedItemModel.findOne({ user: userId, tmdbId, mediaType });
-    return { 
-      watched: !!existing,
-      watchedEpisodes: existing?.watchedEpisodes || [],
-      ignorePreviousEpisodesPrompt: existing?.ignorePreviousEpisodesPrompt || false
+    if (!existing) {
+      return {
+        watched: false,
+        watchedEpisodes: [],
+        ignorePreviousEpisodesPrompt: false,
+      };
+    }
+
+    if (mediaType === 'movie') {
+      return {
+        watched: true,
+        watchedEpisodes: [],
+        ignorePreviousEpisodesPrompt: false,
+      };
+    }
+
+    const releasedEpisodes = await this.getAllReleasedEpisodes(tmdbId);
+    const watched = this.isFullyWatched(existing.watchedEpisodes, releasedEpisodes);
+
+    return {
+      watched,
+      watchedEpisodes: existing.watchedEpisodes || [],
+      ignorePreviousEpisodesPrompt: existing.ignorePreviousEpisodesPrompt || false,
     };
   }
 

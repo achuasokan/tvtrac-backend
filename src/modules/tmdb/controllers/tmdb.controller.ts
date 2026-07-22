@@ -219,8 +219,7 @@ export class TmdbController {
       if (!id) {
         return res.status(400).json({ error: "Missing id parameter" });
       }
-      // Assuming we just call the tmdbService directly for now, no cache needed yet.
-      const data = await this.tmdbService.getCollection(id);
+      const data = await this.tmdbCacheService.getCachedCollection(id);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Collection Details Error:", error);
