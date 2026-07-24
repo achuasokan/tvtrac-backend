@@ -169,6 +169,41 @@ export class TmdbController {
     }
   };
 
+  public getBatchTitleDetails = async (req: Request, res: Response) => {
+    try {
+      const { items } = req.body;
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.json({});
+      }
+
+      const targetItems = items.slice(0, 50);
+
+      const results = await Promise.all(
+        targetItems.map(async (item: { tmdbId: string; mediaType: string }) => {
+          try {
+            if (!item.tmdbId || !item.mediaType) return null;
+            const data = await this.tmdbCacheService.getCachedTitleDetails(item.mediaType, String(item.tmdbId));
+            return { key: `${item.mediaType}-${item.tmdbId}`, data };
+          } catch (err) {
+            return { key: `${item.mediaType}-${item.tmdbId}`, data: null };
+          }
+        })
+      );
+
+      const detailsMap: Record<string, any> = {};
+      results.forEach((r) => {
+        if (r && r.key) {
+          detailsMap[r.key] = r.data;
+        }
+      });
+
+      res.json(detailsMap);
+    } catch (error: any) {
+      console.error("TMDB Batch Title Details Error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch batch title details" });
+    }
+  };
+
   public getSeasonDetails = async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;

@@ -17,6 +17,7 @@ tmdbRoute.get("/search", tmdbController.search);
 tmdbRoute.get("/company/:id", tmdbController.getCompany);
 tmdbRoute.get("/discover/company/:companyId", tmdbController.discoverByCompany);
 tmdbRoute.get("/title/:mediaType/:id", tmdbController.getTitleDetails);
+tmdbRoute.post("/batch", tmdbController.getBatchTitleDetails);
 tmdbRoute.get("/tv/:id/season/:seasonNumber", tmdbController.getSeasonDetails);
 tmdbRoute.get("/tv/:id/season/:seasonNumber/episode/:episodeNumber", tmdbController.getEpisodeDetails);
 tmdbRoute.get("/person/:id", tmdbController.getPersonDetails);
