@@ -59,6 +59,10 @@ export class TmdbService {
     return this.fetchFromTmdb("/trending/movie/day", { language: "en-US", page });
   }
 
+  async getCompany(id: string) {
+    return this.fetchFromTmdb(`/company/${id}`);
+  }
+
   async discoverByNetwork(providerId: string, page: string = "1", filterType: string = "tv", region: string = "US") {
     // Map Watch Provider IDs from the frontend to TMDB Network IDs (for TV) and Company IDs (for Movies)
     // This avoids TMDB API timeouts associated with the watch_providers endpoint and returns full original catalogs.
@@ -149,17 +153,45 @@ export class TmdbService {
       "Drama": { movie: "18", tv: "18" },
       "Animation": { movie: "16", tv: "16" },
       "Documentary": { movie: "99", tv: "99" },
+      "Family": { movie: "10751", tv: "10751" },
+      "Kids": { movie: "10751", tv: "10762" },
+      "Mystery": { movie: "9648", tv: "9648" },
+      "News": { tv: "10763" },
+      "Reality": { tv: "10764" },
+      "Sci-Fi & Fantasy": { tv: "10765" },
+      "Soap": { tv: "10766" },
+      "Talk": { tv: "10767" },
+      "War & Politics": { tv: "10768" },
+      "Western": { movie: "37", tv: "37" },
       "K-Drama": { movie: "18", tv: "18", language: "ko" },
-      "Marvel": { company: "420" }, // Marvel Studios
-      "DC": { company: "429|9993|128064|173511" }, // DC Entertainment / DC Comics / DC Films / DC Studios
-      "Disney": { company: "2" }, // Walt Disney Pictures
-      "Pixar": { company: "3" }, // Pixar
-      "Star Wars": { company: "1" }, // Lucasfilm
+      "Marvel": { company: "420" },
+      "DC": { company: "429|9993|128064|173511" },
+      "Disney": { company: "2" },
+      "Pixar": { company: "3" },
       "A24": { company: "41077" },
-      "HBO": { company: "3268" },
-      "James Bond": { company: "7576" }, // Eon Productions
+      "HBO": { company: "49|3268" },
       "Universal": { company: "33" },
-      "WB": { company: "17|174" }
+      "WB": { company: "174" },
+      "Star Wars": { company: "1" },
+      "James Bond": { company: "6194" },
+      
+      // New Studios from Screenshot
+      "20th Century Studios": { company: "20" },
+      "Castle Rock Entertainment": { company: "97" },
+      "Columbia Pictures": { company: "5" },
+      "DreamWorks Pictures": { company: "7|11473" },
+      "Focus Features": { company: "10146" },
+      "Lucasfilm Ltd.": { company: "1" },
+      "Marvel Studios": { company: "420" },
+      "New Line Cinema": { company: "12" },
+      "Paramount Pictures": { company: "4" },
+      "Searchlight Pictures": { company: "43" },
+      "Sony Pictures": { company: "5752" },
+      "Studio Ghibli": { company: "10342" },
+      "TriStar Pictures": { company: "559" },
+      "Universal Pictures": { company: "33" },
+      "Walt Disney Pictures": { company: "2" },
+      "Warner Bros. Pictures": { company: "174" }
     };
 
     const map = genreMaps[genreName];
@@ -167,10 +199,18 @@ export class TmdbService {
       throw new Error(`Genre '${genreName}' not recognized.`);
     }
 
-    const endpoint = type === "tv" ? "/discover/tv" : "/discover/movie";
+    // Fallback logic: if requested type is missing but the other exists, switch to the other
+    let actualType = type;
+    if (actualType === "movie" && !map.movie && map.tv) {
+      actualType = "tv";
+    } else if (actualType === "tv" && !map.tv && map.movie) {
+      actualType = "movie";
+    }
+
+    const endpoint = actualType === "tv" ? "/discover/tv" : "/discover/movie";
     
     let actualSortBy = sortBy;
-    if (type === "tv") {
+    if (actualType === "tv") {
       if (actualSortBy.includes("primary_release_date")) {
         actualSortBy = actualSortBy.replace("primary_release_date", "first_air_date");
       }
@@ -190,7 +230,7 @@ export class TmdbService {
     if (map.company) {
       params.with_companies = map.company;
     } else {
-      params.with_genres = type === "tv" ? map.tv! : map.movie!;
+      params.with_genres = actualType === "tv" ? map.tv! : map.movie!;
     }
 
     if (minRating) {
@@ -200,13 +240,13 @@ export class TmdbService {
     }
 
     if (yearFrom && yearTo && yearFrom === yearTo) {
-      if (type === "tv") {
+      if (actualType === "tv") {
         params["first_air_date_year"] = yearFrom;
       } else {
         params["primary_release_year"] = yearFrom;
       }
     } else {
-      if (type === "tv") {
+      if (actualType === "tv") {
         if (yearFrom) params["first_air_date.gte"] = `${yearFrom}-01-01`;
         if (yearTo) params["first_air_date.lte"] = `${yearTo}-12-31`;
       } else {
@@ -251,15 +291,31 @@ export class TmdbService {
       language: "en-US",
     });
   }
-
   async getTitleDetails(mediaType: string, id: string) {
     if (mediaType !== "tv" && mediaType !== "movie") {
       throw new Error("Invalid media type");
     }
-    return this.fetchFromTmdb(`/${mediaType}/${id}`, {
-      append_to_response: "credits,videos,similar,watch/providers",
+    const details = await this.fetchFromTmdb(`/${mediaType}/${id}`, {
+      append_to_response: "credits,videos,similar,recommendations,watch/providers,images,external_ids",
+      include_image_language: "en,null",
       language: "en-US",
     });
+
+    if (details?.external_ids?.imdb_id) {
+      try {
+        const omdbKey = process.env.OMDB_API_KEY;
+        if (omdbKey) {
+          const omdbResponse = await axios.get(`https://www.omdbapi.com/?i=${details.external_ids.imdb_id}&apikey=${omdbKey}`);
+          if (omdbResponse.data && omdbResponse.data.Response !== "False") {
+            details.omdb = omdbResponse.data;
+          }
+        }
+      } catch (e) {
+        console.error("OMDB Fetch Error", e);
+      }
+    }
+
+    return details;
   }
 
   async getSeasonDetails(tvId: string, seasonNumber: string) {
@@ -280,5 +336,39 @@ export class TmdbService {
       append_to_response: "combined_credits",
       language: "en-US",
     });
+  }
+
+  async getCollection(collectionId: string) {
+    return this.fetchFromTmdb(`/collection/${collectionId}`, {
+      language: "en-US",
+    });
+  }
+
+  async discoverByCompany(companyId: string, page: string = "1", type: string = "movie", sortBy: string = "popularity.desc", minRating?: string, yearFrom?: string, yearTo?: string, language?: string) {
+    const params: Record<string, string> = {
+      with_companies: companyId,
+      sort_by: sortBy,
+      page,
+      "vote_count.gte": "10",
+      language: language || "en-US",
+    };
+    if (minRating) params["vote_average.gte"] = minRating;
+    if (yearFrom && type === "movie") params["primary_release_date.gte"] = `${yearFrom}-01-01`;
+    if (yearTo && type === "movie") params["primary_release_date.lte"] = `${yearTo}-12-31`;
+    if (yearFrom && type === "tv") params["first_air_date.gte"] = `${yearFrom}-01-01`;
+    if (yearTo && type === "tv") params["first_air_date.lte"] = `${yearTo}-12-31`;
+    const endpoint = type === "tv" ? "/discover/tv" : "/discover/movie";
+    return this.fetchFromTmdb(endpoint, params);
+  }
+  async discoverByKeyword(keywordId: string, page: string = "1", type: string = "movie", sortBy: string = "popularity.desc") {
+    const params: Record<string, string> = {
+      with_keywords: keywordId,
+      sort_by: sortBy,
+      page,
+      "vote_count.gte": "10",
+      language: "en-US",
+    };
+    const endpoint = type === "tv" ? "/discover/tv" : "/discover/movie";
+    return this.fetchFromTmdb(endpoint, params);
   }
 }

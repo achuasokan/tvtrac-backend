@@ -12,10 +12,16 @@ tmdbRoute.get("/trending/movie", tmdbController.getTrendingMovies);
 tmdbRoute.get("/network/:networkId", tmdbController.discoverByNetwork);
 tmdbRoute.get("/discover/genre/:genreName", tmdbController.discoverByGenre);
 tmdbRoute.get("/discover/advanced", tmdbController.discoverAdvanced);
+tmdbRoute.get("/discover/keyword/:keywordId", tmdbController.discoverByKeyword);
 tmdbRoute.get("/search", tmdbController.search);
+tmdbRoute.get("/company/:id", tmdbController.getCompany);
+tmdbRoute.get("/discover/company/:companyId", tmdbController.discoverByCompany);
 tmdbRoute.get("/title/:mediaType/:id", tmdbController.getTitleDetails);
+tmdbRoute.post("/batch", tmdbController.getBatchTitleDetails);
 tmdbRoute.get("/tv/:id/season/:seasonNumber", tmdbController.getSeasonDetails);
 tmdbRoute.get("/tv/:id/season/:seasonNumber/episode/:episodeNumber", tmdbController.getEpisodeDetails);
 tmdbRoute.get("/person/:id", tmdbController.getPersonDetails);
+
+tmdbRoute.get("/collection/:id", tmdbController.getCollection);
 
 export default tmdbRoute;

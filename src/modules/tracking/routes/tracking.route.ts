@@ -14,5 +14,7 @@ trackingRoute.get("/watched/status/:mediaType/:tmdbId", trackingController.check
 trackingRoute.post("/watched/episode/toggle", trackingController.toggleEpisodeWatched);
 trackingRoute.post("/watched/season/toggle", trackingController.markSeasonWatched);
 trackingRoute.post("/settings/ignore-previous-prompt", trackingController.setIgnorePreviousPrompt);
+trackingRoute.get("/history", trackingController.getWatchHistory);
+trackingRoute.get("/stats", trackingController.getStats);
 
 export default trackingRoute;

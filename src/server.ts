@@ -7,7 +7,6 @@ import connectDB from './config/database.js'
 
 import app from './app.js'
 
-
 const startserver  = async () => {
     try {
         await connectDB();
