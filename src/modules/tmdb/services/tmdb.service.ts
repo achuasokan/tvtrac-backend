@@ -1,10 +1,16 @@
-import { injectable } from "inversify";
+import { injectable, inject } from "inversify";
 import axios from "axios";
+import { TYPES } from "../../../di/types.js";
+import { IOmdbCacheRepository } from "../repositories/omdbCache.repository.interface.js";
 
 @injectable()
 export class TmdbService {
   private readonly baseUrl = "https://api.themoviedb.org/3";
   private readonly apiKey = process.env.TMDB_API_KEY;
+
+  constructor(
+      @inject(TYPES.OmdbCacheRepository) private omdbCacheRepository: IOmdbCacheRepository
+  ) {}
 
   private async fetchFromTmdb(endpoint: string, queryParams: Record<string, string> = {}) {
     if (!this.apiKey) {
@@ -303,11 +309,25 @@ export class TmdbService {
 
     if (details?.external_ids?.imdb_id) {
       try {
-        const omdbKey = process.env.OMDB_API_KEY;
-        if (omdbKey) {
-          const omdbResponse = await axios.get(`https://www.omdbapi.com/?i=${details.external_ids.imdb_id}&apikey=${omdbKey}`);
-          if (omdbResponse.data && omdbResponse.data.Response !== "False") {
-            details.omdb = omdbResponse.data;
+        const imdbId = details.external_ids.imdb_id;
+        // 1. Check database cache first
+        const cachedOmdb = await this.omdbCacheRepository.findByImdbId(imdbId);
+        
+        if (cachedOmdb) {
+          details.omdb = cachedOmdb.data;
+        } else {
+          // 2. If not in cache, fetch from API
+          const omdbKey = process.env.OMDB_API_KEY;
+          if (omdbKey) {
+            const omdbResponse = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=${omdbKey}`);
+            
+            if (omdbResponse.data && omdbResponse.data.Response !== "False") {
+              details.omdb = omdbResponse.data;
+              
+              // 3. Save to database for next 90 days
+              this.omdbCacheRepository.saveCache(imdbId, omdbResponse.data)
+                .catch(err => console.error("OMDB Cache Save Error", err));
+            }
           }
         }
       } catch (e) {

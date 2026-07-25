@@ -14,4 +14,6 @@ export const TYPES = {
     UserService: Symbol.for("UserService"),
     UserCategorizationService: Symbol.for("UserCategorizationService"),
     UserController: Symbol.for("UserController"),
+    OmdbCacheRepository: Symbol.for("OmdbCacheRepository"),
+    TmdbCacheRepository: Symbol.for("TmdbCacheRepository"),
 };

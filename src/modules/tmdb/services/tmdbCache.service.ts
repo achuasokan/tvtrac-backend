@@ -1,17 +1,18 @@
 import { injectable, inject } from "inversify";
 import { TmdbService } from "./tmdb.service.js";
-import { TmdbCacheModel } from "../models/tmdbCache.schema.js";
+import { ITmdbCacheRepository } from "../repositories/tmdbCache.repository.interface.js";
 import { ITmdbCacheService } from "./tmdbCache.service.interface.js";
 import { TYPES } from "../../../di/types.js";
 
 @injectable()
 export class TmdbCacheService implements ITmdbCacheService {
     constructor(
-        @inject(TYPES.TmdbService) private tmdbService: TmdbService
+        @inject(TYPES.TmdbService) private tmdbService: TmdbService,
+        @inject(TYPES.TmdbCacheRepository) private tmdbCacheRepository: ITmdbCacheRepository
     ) {}
 
     private async getOrSetCache(cacheKey: string, type: string, fetchFn: () => Promise<any>) {
-        const cacheEntry = await TmdbCacheModel.findOne({ tmdbId: cacheKey, type });
+        const cacheEntry = await this.tmdbCacheRepository.findByTmdbIdAndType(cacheKey, type);
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
         if (cacheEntry && cacheEntry.lastUpdated > oneDayAgo) {
@@ -20,14 +21,7 @@ export class TmdbCacheService implements ITmdbCacheService {
 
         const freshData = await fetchFn();
 
-        await TmdbCacheModel.findOneAndUpdate(
-            { tmdbId: cacheKey, type },
-            { 
-                data: freshData,
-                lastUpdated: new Date()
-            },
-            { upsert: true, new: true }
-        );
+        await this.tmdbCacheRepository.upsertCache(cacheKey, type, freshData);
 
         return freshData;
     }
