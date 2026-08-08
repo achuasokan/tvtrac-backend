@@ -10,6 +10,10 @@ import { AuthController } from "../modules/auth/controllers/auth.controller.js";
 import { TmdbService } from "../modules/tmdb/services/tmdb.service.js";
 import { TmdbCacheService } from "../modules/tmdb/services/tmdbCache.service.js";
 import { TmdbController } from "../modules/tmdb/controllers/tmdb.controller.js";
+import { IOmdbCacheRepository } from "../modules/tmdb/repositories/omdbCache.repository.interface.js";
+import { OmdbCacheRepository } from "../modules/tmdb/repositories/omdbCache.repository.js";
+import { ITmdbCacheRepository } from "../modules/tmdb/repositories/tmdbCache.repository.interface.js";
+import { TmdbCacheRepository } from "../modules/tmdb/repositories/tmdbCache.repository.js";
 
 import { TrackingService } from "../modules/tracking/services/tracking.service.js";
 import { TrackingController } from "../modules/tracking/controllers/tracking.controller.js";
@@ -35,6 +39,8 @@ container.bind<AuthController>(TYPES.AuthController).to(AuthController);
 container.bind<TmdbService>(TYPES.TmdbService).to(TmdbService);
 container.bind<TmdbCacheService>(TYPES.TmdbCacheService).to(TmdbCacheService);
 container.bind<TmdbController>(TYPES.TmdbController).to(TmdbController);
+container.bind<IOmdbCacheRepository>(TYPES.OmdbCacheRepository).to(OmdbCacheRepository);
+container.bind<ITmdbCacheRepository>(TYPES.TmdbCacheRepository).to(TmdbCacheRepository);
 container.bind<TrackingService>(TYPES.TrackingService).to(TrackingService);
 container.bind<TrackingController>(TYPES.TrackingController).to(TrackingController);
 
