@@ -33,7 +33,7 @@ export class TrackingController {
         return res.status(400).json({ error: "Missing tmdbId or mediaType parameter" });
       }
 
-      const result = await this.trackingService.checkIsWatched(userId, tmdbId, mediaType);
+      const result = await this.trackingService.checkIsWatched(userId, tmdbId as string, mediaType as "movie" | "tv");
       res.json(result);
     } catch (error: any) {
       console.error("Check Watched Error:", error);

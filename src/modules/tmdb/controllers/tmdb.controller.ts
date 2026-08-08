@@ -45,7 +45,7 @@ export class TmdbController {
 
   public getCompany = async (req: Request, res: Response) => {
     try {
-      const id = req.params.id;
+      const id = req.params.id as string;
       if (!id) return res.status(400).json({ error: "Missing company ID" });
       const data = await this.tmdbCacheService.getCachedCompany(id);
       res.json(data);
