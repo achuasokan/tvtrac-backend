@@ -9,6 +9,11 @@ const connectDB = async () => {
         await mongoose.connect(env.MONGO_URI)
         logger.info(`MongoDB connected successfully ${mongoose.connection.host}`);
 
+            console.log(
+            "MongoDB connected successfully:",
+            mongoose.connection.host
+        );
+
         mongoose.connection.on("disconnected", () => {
             logger.warn("MongoDB disconnected");
         });
