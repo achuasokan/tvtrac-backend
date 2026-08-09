@@ -20,7 +20,9 @@ const connectDB = async () => {
 
     } catch (error) {
         logger.error("MongoDB connection Failed", { error });
-        throw error;
+
+       console.error(" MONGODB CONNECTION ERROR:", error);
+throw error;
     }
 }
 
