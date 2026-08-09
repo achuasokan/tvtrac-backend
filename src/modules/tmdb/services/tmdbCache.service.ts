@@ -3,19 +3,51 @@ import { TmdbService } from "./tmdb.service.js";
 import { ITmdbCacheRepository } from "../repositories/tmdbCache.repository.interface.js";
 import { ITmdbCacheService } from "./tmdbCache.service.interface.js";
 import { TYPES } from "../../../di/types.js";
+import logger from "../../../shared/logger.js";
+
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 @injectable()
 export class TmdbCacheService implements ITmdbCacheService {
     private pendingRequests: Map<string, Promise<any>> = new Map();
+    private revalidatingKeys: Set<string> = new Set();
 
     constructor(
         @inject(TYPES.TmdbService) private tmdbService: TmdbService,
         @inject(TYPES.TmdbCacheRepository) private tmdbCacheRepository: ITmdbCacheRepository
     ) {}
 
-    private async getOrSetCache(cacheKey: string, type: string, fetchFn: () => Promise<any>) {
+    /**
+     * Helper to fetch data with automatic retry on transient network errors (ECONNRESET, ETIMEDOUT, 5xx)
+     */
+    private async fetchWithRetry(fetchFn: () => Promise<any>, maxRetries = 3, delays = [500, 1000]): Promise<any> {
+        let attempt = 0;
+        while (attempt < maxRetries) {
+            try {
+                return await fetchFn();
+            } catch (error: any) {
+                attempt++;
+                const isTransient = 
+                    error?.code === 'ECONNRESET' ||
+                    error?.code === 'ETIMEDOUT' ||
+                    error?.code === 'ENOTFOUND' ||
+                    (error?.status >= 500 && error?.status < 600);
+
+                if (attempt >= maxRetries || !isTransient) {
+                    throw error;
+                }
+
+                const delay = delays[attempt - 1] || 1000;
+                logger.warn(`[TmdbCacheService] Fetch attempt ${attempt} failed (${error?.code || error?.message}). Retrying in ${delay}ms...`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    private async getOrSetCache(cacheKey: string, type: string, fetchFn: () => Promise<any>, ttlMs: number = DEFAULT_TTL_MS) {
         const fullKey = `${type}:${cacheKey}`;
 
+        // Single-flight deduplication for active in-flight requests
         if (this.pendingRequests.has(fullKey)) {
             return this.pendingRequests.get(fullKey);
         }
@@ -23,17 +55,44 @@ export class TmdbCacheService implements ITmdbCacheService {
         const workPromise = (async () => {
             try {
                 const cacheEntry = await this.tmdbCacheRepository.findByTmdbIdAndType(cacheKey, type);
-                const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                const expiryThreshold = new Date(Date.now() - ttlMs);
 
-                if (cacheEntry && cacheEntry.lastUpdated > oneDayAgo) {
+                // Case 1: Fresh Cache -> Return immediately
+                if (cacheEntry && cacheEntry.lastUpdated > expiryThreshold) {
                     return cacheEntry.data;
                 }
 
-                const freshData = await fetchFn();
+                // Case 2: Stale Cache -> Return stale immediately + trigger background refresh (SWR) with single-flight lock
+                if (cacheEntry) {
+                    if (!this.revalidatingKeys.has(fullKey)) {
+                        this.revalidatingKeys.add(fullKey);
+                        // Async background revalidation
+                        (async () => {
+                            try {
+                                const freshData = await this.fetchWithRetry(fetchFn);
+                                if (freshData) {
+                                    await this.tmdbCacheRepository.upsertCache(cacheKey, type, freshData);
+                                }
+                            } catch (err: any) {
+                                logger.error(`[TmdbCacheService] Background revalidation failed for ${fullKey}: ${err?.message}`);
+                            } finally {
+                                this.revalidatingKeys.delete(fullKey);
+                            }
+                        })();
+                    }
+                    return cacheEntry.data;
+                }
 
-                await this.tmdbCacheRepository.upsertCache(cacheKey, type, freshData);
-
-                return freshData;
+                // Case 3: No Cache -> Fetch with retries, upsert and return
+                try {
+                    const freshData = await this.fetchWithRetry(fetchFn);
+                    await this.tmdbCacheRepository.upsertCache(cacheKey, type, freshData);
+                    return freshData;
+                } catch (fetchError: any) {
+                    logger.error(`[TmdbCacheService] TMDB fetch failed for ${fullKey}: ${fetchError?.message}`);
+                    // Return controlled fallback structure instead of throwing 500
+                    return { results: [], source: "fallback" };
+                }
             } finally {
                 this.pendingRequests.delete(fullKey);
             }
