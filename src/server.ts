@@ -9,17 +9,11 @@ import app from './app.js'
 
 const startserver  = async () => {
     try {
-        console.log("Starting server...");
-        console.log("PORT:", env.PORT);
-
-         console.log("Connecting to MongoDB...");
         await connectDB();
-
-        console.log("MongoDB connected!");
 
         const httpServer = http.createServer(app)
         
-        httpServer.listen(env.PORT, "0.0.0.0", () => {
+        httpServer.listen(env.PORT, () => {
             logger.info(`server running on http://localhost:${env.PORT}`)
         })
         
