@@ -2,11 +2,12 @@ import { injectable, inject } from "inversify";
 import axios from "axios";
 import { TYPES } from "../../../di/types.js";
 import { IOmdbCacheRepository } from "../repositories/omdbCache.repository.interface.js";
+import { env } from "../../../config/env.js";
 
 @injectable()
 export class TmdbService {
   private readonly baseUrl = "https://api.themoviedb.org/3";
-  private readonly apiKey = process.env.TMDB_API_KEY;
+  private readonly apiKey = env.TMDB_API_KEY;
 
   constructor(
       @inject(TYPES.OmdbCacheRepository) private omdbCacheRepository: IOmdbCacheRepository
@@ -317,7 +318,7 @@ export class TmdbService {
           details.omdb = cachedOmdb.data;
         } else {
           // 2. If not in cache, fetch from API
-          const omdbKey = process.env.OMDB_API_KEY;
+          const omdbKey = env.OMDB_API_KEY;
           if (omdbKey) {
             const omdbResponse = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=${omdbKey}`);
             

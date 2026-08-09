@@ -37,4 +37,7 @@ export const env = {
   CLOUDINARY_API_SECRET: getEnv("CLOUDINARY_API_SECRET"),
 
   YOUTUBE_API_KEY: getEnv("YOUTUBE_API_KEY"),
+
+  TMDB_API_KEY: getEnv("TMDB_API_KEY"),
+OMDB_API_KEY: getEnv("OMDB_API_KEY"),
 };
