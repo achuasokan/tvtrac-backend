@@ -14,7 +14,7 @@ function getEnv(name: string): string {
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
-  PORT: Number(getEnv("PORT")),
+  PORT: Number(process.env.PORT) || 5000,
 
   MONGO_URI: getEnv("MONGO_URI"),
 
