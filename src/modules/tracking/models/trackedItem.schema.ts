@@ -54,5 +54,6 @@ const trackedItemSchema = new Schema(
 );
 
 trackedItemSchema.index({ user: 1, tmdbId: 1, mediaType: 1 }, { unique: true });
+trackedItemSchema.index({ user: 1, mediaType: 1, tmdbId: 1 });
 
 export const TrackedItemModel = model("TrackedItem", trackedItemSchema);
