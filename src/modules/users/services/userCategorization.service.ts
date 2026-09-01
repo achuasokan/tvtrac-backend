@@ -186,7 +186,7 @@ export class UserCategorizationService implements IUserCategorizationService {
                     const lastAirDate = new Date(year, month - 1, day);
                     const diffTime = todayAtMidnight.getTime() - lastAirDate.getTime();
                     const daysSince = Math.round(diffTime / (1000 * 3600 * 24));
-                    if (daysSince >= 0 && daysSince <= 30) {
+                    if (daysSince >= 0 && daysSince <= 15) {
                         if (!upcomingEpisodesToProcess.some(e => e.episode_number === show.details.last_episode_to_air.episode_number && e.season_number === show.details.last_episode_to_air.season_number)) {
                             upcomingEpisodesToProcess.push({ ...show.details.last_episode_to_air, show });
                         }
@@ -204,6 +204,7 @@ export class UserCategorizationService implements IUserCategorizationService {
                 return {
                     ...ep.show,
                     isUpcomingItem: true,
+                    isRecentlyAired: daysLeft < 0,
                     daysLeft,
                     airDate: airDate.toISOString(),
                     upcomingEpisodeDetails: ep
