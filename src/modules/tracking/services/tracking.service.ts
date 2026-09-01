@@ -1,11 +1,13 @@
 import { inject, injectable } from "inversify";
 import { TrackedItemModel } from "../models/trackedItem.schema.js";
-import { TmdbService } from "../../tmdb/services/tmdb.service.js";
+import { UserModel } from "../../auth/user.schema.js";
+import { ITmdbCacheService } from "../../tmdb/services/tmdbCache.service.interface.js";
 import { TYPES } from "../../../di/types.js";
+import logger from "../../../shared/logger.js";
 
 @injectable()
 export class TrackingService {
-  constructor(@inject(TYPES.TmdbService) private tmdbService: TmdbService) {}
+  constructor(@inject(TYPES.TmdbCacheService) private tmdbCacheService: ITmdbCacheService) {}
 
   private async resolveEpisodeRuntime(
     tmdbId: string,
@@ -17,7 +19,7 @@ export class TrackingService {
 
     if (season !== undefined && episode !== undefined) {
       try {
-        const epDetails = await this.tmdbService.getEpisodeDetails(
+        const epDetails = await this.tmdbCacheService.getCachedEpisodeDetails(
           tmdbId,
           String(season),
           String(episode),
@@ -29,7 +31,7 @@ export class TrackingService {
     }
 
     try {
-      const details = await this.tmdbService.getTitleDetails("tv", tmdbId);
+      const details = await this.tmdbCacheService.getCachedTitleDetails("tv", tmdbId);
       const showRuntime = details?.episode_run_time?.[0];
       return showRuntime && showRuntime > 0 ? showRuntime : 45;
     } catch {
@@ -40,7 +42,7 @@ export class TrackingService {
   private async getSeasonEpisodeRuntimes(tmdbId: string, season: number): Promise<Map<number, number>> {
     const runtimes = new Map<number, number>();
     try {
-      const seasonDetails = await this.tmdbService.getSeasonDetails(tmdbId, String(season));
+      const seasonDetails = await this.tmdbCacheService.getCachedSeasonDetails(tmdbId, String(season));
       for (const ep of seasonDetails?.episodes || []) {
         if (ep.runtime > 0) {
           runtimes.set(ep.episode_number, ep.runtime);
@@ -107,15 +109,15 @@ export class TrackingService {
   }
 
   private async getAllReleasedEpisodes(tmdbId: string) {
-    const details = await this.tmdbService.getTitleDetails("tv", tmdbId);
-    const seasons = (details.seasons || []).filter((s: { season_number: number }) => s.season_number > 0);
+    const details = await this.tmdbCacheService.getCachedTitleDetails("tv", tmdbId);
+    const seasons = (details?.seasons || []).filter((s: { season_number: number }) => s.season_number > 0);
     const now = new Date();
     const episodes: { season: number; episode: number; runtime: number }[] = [];
 
     for (const season of seasons) {
       try {
-        const seasonDetails = await this.tmdbService.getSeasonDetails(tmdbId, String(season.season_number));
-        for (const ep of seasonDetails.episodes || []) {
+        const seasonDetails = await this.tmdbCacheService.getCachedSeasonDetails(tmdbId, String(season.season_number));
+        for (const ep of seasonDetails?.episodes || []) {
           if (ep.air_date && new Date(ep.air_date) <= now) {
             episodes.push({
               season: season.season_number,
@@ -150,12 +152,29 @@ export class TrackingService {
         return { watched: false };
       }
 
+      let movieRuntime = runtime && runtime > 0 ? runtime : 0;
+      if (!movieRuntime) {
+        try {
+          const details = await this.tmdbCacheService.getCachedTitleDetails('movie', tmdbId);
+          movieRuntime = details?.runtime || 0;
+        } catch {
+          movieRuntime = 0;
+        }
+      }
+
       await TrackedItemModel.create({
         user: userId,
         tmdbId,
         mediaType,
-        movieRuntime: runtime || 0,
+        movieRuntime,
       });
+
+      // Automatically remove from active watchlist since it has been watched
+      await UserModel.updateOne(
+        { _id: userId },
+        { $pull: { watchlistMovies: String(tmdbId) } }
+      ).catch(() => {});
+
       return { watched: true };
     }
 
@@ -224,8 +243,11 @@ export class TrackingService {
   }
 
   async toggleEpisode(userId: string, tmdbId: string, season: number, episode: number, runtime?: number) {
+    const startTime = performance.now();
     let doc = await TrackedItemModel.findOne({ user: userId, tmdbId, mediaType: 'tv' });
+    const runtimeStart = performance.now();
     const resolvedRuntime = await this.resolveEpisodeRuntime(tmdbId, runtime, season, episode);
+    const runtimeDuration = Math.round(performance.now() - runtimeStart);
 
     if (!doc) {
       doc = await TrackedItemModel.create({
@@ -255,10 +277,14 @@ export class TrackingService {
     }
 
     if (await this.deleteIfNoWatchedEpisodes(doc)) {
+      const totalDuration = Math.round(performance.now() - startTime);
+      logger.info(`[TrackingService] toggleEpisode (deleted) tmdbId=${tmdbId} S${season}E${episode} took ${totalDuration}ms (runtime: ${runtimeDuration}ms)`);
       return { watched: false, watchedEpisodes: [] };
     }
     
     await doc.save();
+    const totalDuration = Math.round(performance.now() - startTime);
+    logger.info(`[TrackingService] toggleEpisode tmdbId=${tmdbId} S${season}E${episode} watched=${isWatched} took ${totalDuration}ms (runtime: ${runtimeDuration}ms)`);
     return { watched: isWatched, watchedEpisodes: doc.watchedEpisodes };
   }
 
@@ -351,16 +377,33 @@ export class TrackingService {
     };
   }
 
+  private async backfillMovieRuntimes(movies: any[]) {
+    for (const movie of movies) {
+      if (!movie.movieRuntime || movie.movieRuntime <= 0) {
+        try {
+          const details = await this.tmdbCacheService.getCachedTitleDetails('movie', movie.tmdbId);
+          if (details?.runtime && details.runtime > 0) {
+            movie.movieRuntime = details.runtime;
+            await TrackedItemModel.updateOne({ _id: movie._id }, { $set: { movieRuntime: details.runtime } });
+          }
+        } catch {
+          // ignore error
+        }
+      }
+    }
+  }
+
   async getStats(userId: string) {
     const allItems = await TrackedItemModel.find({ user: userId });
 
     const movies = allItems.filter(item => item.mediaType === 'movie');
     const tvShows = allItems.filter(item => item.mediaType === 'tv' && (item.watchedEpisodes?.length || 0) > 0);
 
-    // Backfill missing per-episode runtimes from TMDB
+    // Backfill missing per-episode runtimes and movie runtimes from TMDB
     for (const show of tvShows) {
       await this.backfillEpisodeRuntimes(show);
     }
+    await this.backfillMovieRuntimes(movies);
 
     const totalMovies = movies.length;
     const totalMovieMinutes = movies.reduce((sum, m) => sum + (m.movieRuntime || 0), 0);

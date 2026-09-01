@@ -2,42 +2,55 @@ import { injectable, inject } from "inversify";
 import { TYPES } from "../../../di/types.js";
 import { IUserRepository } from "../repositories/user.repository.interface.js";
 import { ITmdbCacheService } from "../../tmdb/services/tmdbCache.service.interface.js";
-import { TrackingService } from "../../tracking/services/tracking.service.js";
+import { TrackedItemModel } from "../../tracking/models/trackedItem.schema.js";
 import { IUserCategorizationService } from "./userCategorization.service.interface.js";
+import logger from "../../../shared/logger.js";
 
 @injectable()
 export class UserCategorizationService implements IUserCategorizationService {
     constructor(
         @inject(TYPES.UserRepository) private userRepository: IUserRepository,
-        @inject(TYPES.TmdbCacheService) private tmdbCacheService: ITmdbCacheService,
-        @inject(TYPES.TrackingService) private trackingService: TrackingService
+        @inject(TYPES.TmdbCacheService) private tmdbCacheService: ITmdbCacheService
     ) {}
 
     async getCategorizedShows(userId: string, category: string, page: number = 1, limit: number = 20) {
+        const startTime = performance.now();
         const user = await this.userRepository.findById(userId);
         if (!user || !user.watchlistShows || user.watchlistShows.length === 0) {
             return { data: [], total: 0, hasMore: false };
         }
 
-        const watchlist = user.watchlistShows;
+        const watchlist = Array.from(new Set(user.watchlistShows));
         
-        // Fetch all tracked data in one go? 
-        // TrackingService currently only has getWatchedEpisodes for a single item. We might need a batch fetch.
-        // For now, let's fetch in parallel.
+        // 1. Batch fetch all tracked items for the user's watchlist in a single indexed query
+        const dbStart = performance.now();
+        const trackedDocs = await TrackedItemModel.find({
+            user: userId,
+            mediaType: 'tv',
+            tmdbId: { $in: watchlist }
+        }).lean();
+        const dbDuration = Math.round(performance.now() - dbStart);
+        const trackedMap = new Map(trackedDocs.map(doc => [doc.tmdbId, doc]));
+
+        // 2. Fetch cached TMDB details in parallel without redundant external calls
         const promises = watchlist.map(async (tmdbId) => {
-            const [details, trackedData] = await Promise.all([
-                this.tmdbCacheService.getCachedTitleDetails('tv', tmdbId),
-                this.trackingService.checkIsWatched(userId, tmdbId, 'tv').catch(() => null)
-            ]);
+            const details = await this.tmdbCacheService.getCachedTitleDetails('tv', tmdbId);
+            if (!details) return null;
+
+            const trackedItem = trackedMap.get(tmdbId);
+            const trackedData = trackedItem ? {
+                watchedEpisodes: trackedItem.watchedEpisodes || [],
+                ignorePreviousEpisodesPrompt: trackedItem.ignorePreviousEpisodesPrompt || false,
+            } : null;
 
             let seasonDetails = null;
             if (details.next_episode_to_air) {
                 try {
-                    seasonDetails = await this.tmdbCacheService.getCachedSeasonDetails(tmdbId, details.next_episode_to_air.season_number);
+                    seasonDetails = await this.tmdbCacheService.getCachedSeasonDetails(tmdbId, String(details.next_episode_to_air.season_number));
                 } catch (e) {}
             }
 
-            // Categorization Logic (identical to frontend)
+            // Categorization Logic (identical to established business rules)
             let nextEpisodeStr = "Up to date";
             let nextEpisodeTitle = "";
             let isUpToDate = false;
@@ -120,10 +133,11 @@ export class UserCategorizationService implements IUserCategorizationService {
             return showObj;
         });
 
-        const allShows = await Promise.all(promises);
+        const rawShows = await Promise.all(promises);
+        const allShows = rawShows.filter((s): s is NonNullable<typeof s> => s !== null);
 
         // Sort by category
-        let filteredShows = [];
+        let filteredShows: any[] = [];
         let historyEpisodes: any[] = [];
         let upcomingEpisodesToProcess: any[] = [];
 
@@ -206,15 +220,26 @@ export class UserCategorizationService implements IUserCategorizationService {
                     filteredShows.push(show);
                 }
             }
+
+            if (category === 'watch-next' || category === 'havent-watched-for-a-while') {
+                filteredShows.sort((a, b) => a.daysSinceLastWatch - b.daysSinceLastWatch);
+            } else if (category === 'havent-started') {
+                filteredShows.reverse(); // Most recently added shows appear at the top
+            }
         }
 
         // Pagination
         const startIndex = (page - 1) * limit;
         const paginatedShows = filteredShows.slice(startIndex, startIndex + limit);
 
+        const totalDuration = Math.round(performance.now() - startTime);
+        logger.info(`[UserCategorizationService] getCategorizedShows category=${category} count=${paginatedShows.length}/${filteredShows.length} total=${totalDuration}ms (dbBatch=${dbDuration}ms)`);
+
         return {
             data: paginatedShows,
             total: filteredShows.length,
+            page,
+            nextPage: startIndex + limit < filteredShows.length ? page + 1 : undefined,
             hasMore: startIndex + limit < filteredShows.length
         };
     }
@@ -225,7 +250,15 @@ export class UserCategorizationService implements IUserCategorizationService {
             return { data: [], total: 0, hasMore: false };
         }
 
-        const watchlist = user.watchlistMovies;
+        const watchlist = Array.from(new Set(user.watchlistMovies));
+
+        // Fetch watched movies in a single indexed query
+        const trackedMovies = await TrackedItemModel.find({
+            user: userId,
+            mediaType: 'movie',
+            tmdbId: { $in: watchlist }
+        }).lean();
+        const watchedMovieSet = new Set(trackedMovies.map(m => String(m.tmdbId)));
         
         // Fetch TMDB details in parallel
         const promises = watchlist.map(async (tmdbId) => {
@@ -245,7 +278,8 @@ export class UserCategorizationService implements IUserCategorizationService {
             return {
                 tmdbId,
                 details,
-                daysLeft
+                daysLeft,
+                isWatched: watchedMovieSet.has(String(tmdbId))
             };
         });
 
@@ -256,7 +290,7 @@ export class UserCategorizationService implements IUserCategorizationService {
 
         if (category === 'upcoming') {
             for (const movie of moviesData) {
-                if (movie.daysLeft !== undefined && movie.daysLeft >= -30) {
+                if (!movie.isWatched && movie.daysLeft !== undefined && movie.daysLeft >= -30) {
                     filteredMovies.push(movie);
                 }
             }
@@ -268,8 +302,8 @@ export class UserCategorizationService implements IUserCategorizationService {
                 return a.daysLeft - b.daysLeft;
             });
         } else {
-            // Default 'watchlist' category just returns all tracked movies
-            filteredMovies = moviesData;
+            // Watchlist category: Only return movies that have NOT been watched yet (newest added first)
+            filteredMovies = moviesData.filter(movie => !movie.isWatched).reverse();
         }
 
         // Pagination
@@ -279,6 +313,8 @@ export class UserCategorizationService implements IUserCategorizationService {
         return {
             data: paginatedMovies,
             total: filteredMovies.length,
+            page,
+            nextPage: startIndex + limit < filteredMovies.length ? page + 1 : undefined,
             hasMore: startIndex + limit < filteredMovies.length
         };
     }
