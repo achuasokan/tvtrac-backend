@@ -31,6 +31,12 @@ import { UserService } from "../modules/users/services/user.service.js";
 import { UserCategorizationService } from "../modules/users/services/userCategorization.service.js";
 import { UserController } from "../modules/users/controllers/user.controller.js";
 
+import { IDiscussionRepository } from "../modules/discussions/repositories/discussion.repository.interface.js";
+import { DiscussionRepository } from "../modules/discussions/repositories/discussion.repository.js";
+import { IDiscussionService } from "../modules/discussions/services/discussion.service.interface.js";
+import { DiscussionService } from "../modules/discussions/services/discussion.service.js";
+import { DiscussionController } from "../modules/discussions/controllers/discussion.controller.js";
+
 const container = new Container();
 
 container.bind<IAuthRepository>(TYPES.AuthRepository).to(AuthRepository);
@@ -53,4 +59,9 @@ container.bind<IUserService>(TYPES.UserService).to(UserService);
 container.bind<UserCategorizationService>(TYPES.UserCategorizationService).to(UserCategorizationService);
 container.bind<UserController>(TYPES.UserController).to(UserController);
 
+container.bind<IDiscussionRepository>(TYPES.DiscussionRepository).to(DiscussionRepository);
+container.bind<IDiscussionService>(TYPES.DiscussionService).to(DiscussionService);
+container.bind<DiscussionController>(TYPES.DiscussionController).to(DiscussionController);
+
 export { container };
+

@@ -16,4 +16,7 @@ export const TYPES = {
     UserController: Symbol.for("UserController"),
     OmdbCacheRepository: Symbol.for("OmdbCacheRepository"),
     TmdbCacheRepository: Symbol.for("TmdbCacheRepository"),
+    DiscussionRepository: Symbol.for("DiscussionRepository"),
+    DiscussionService: Symbol.for("DiscussionService"),
+    DiscussionController: Symbol.for("DiscussionController"),
 };
