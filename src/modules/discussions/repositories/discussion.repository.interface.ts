@@ -1,7 +1,9 @@
 import { IEpisodeReaction } from "../models/episodeReaction.schema.js";
 import { IEpisodeComment, IEpisodeCommentMediaProjection } from "../models/episodeComment.schema.js";
+import { IMovieReaction } from "../models/movieReaction.schema.js";
+import { IMovieComment } from "../models/movieComment.schema.js";
 import { IDiscussionMedia } from "../models/discussionMedia.schema.js";
-import { UpsertReactionDTO, CreateCommentDTO, GetCommentsQueryDTO } from "../dtos/discussion.dto.js";
+import { UpsertReactionDTO, UpsertMovieReactionDTO, CreateCommentDTO, GetCommentsQueryDTO } from "../dtos/discussion.dto.js";
 import { Types } from "mongoose";
 
 export interface IDiscussionRepository {
@@ -85,4 +87,39 @@ export interface IDiscussionRepository {
   ): Promise<{ isLiked: boolean; likeCount: number }>;
 
   getCommentCount(tmdbId: string, season: number, episode: number): Promise<number>;
+
+  upsertMovieReaction(
+    userId: string,
+    tmdbId: string,
+    dto: UpsertMovieReactionDTO
+  ): Promise<IMovieReaction>;
+
+  getUserMovieReaction(
+    userId: string,
+    tmdbId: string
+  ): Promise<IMovieReaction | null>;
+
+  getMovieReactionSummary(
+    tmdbId: string
+  ): Promise<{
+    ratingStats: { averageRating: number | null; totalRatings: number };
+    mvpVotes: Array<{ characterId: number; count: number }>;
+  }>;
+
+  createMovieComment(
+    userId: string,
+    tmdbId: string,
+    dto: CreateCommentDTO
+  ): Promise<IMovieComment>;
+
+  deleteMovieComment(commentId: string, userId: string): Promise<IMovieComment | null>;
+
+  getMovieCommentById(commentId: string): Promise<IMovieComment | null>;
+
+  getMovieComments(
+    tmdbId: string,
+    options: GetCommentsQueryDTO
+  ): Promise<{ comments: IMovieComment[]; nextCursor: string | null; hasMore: boolean }>;
+
+  getMovieCommentCount(tmdbId: string): Promise<number>;
 }

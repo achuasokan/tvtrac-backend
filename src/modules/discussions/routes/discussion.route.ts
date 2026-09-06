@@ -21,6 +21,19 @@ discussionRouter.get(
   discussionController.getComments
 );
 
+// Movie Discussion endpoints (Authenticated users only)
+discussionRouter.get(
+  "/movie/:tmdbId/summary",
+  authenticate,
+  discussionController.getMovieSummary
+);
+
+discussionRouter.get(
+  "/movie/:tmdbId/comments",
+  authenticate,
+  discussionController.getMovieComments
+);
+
 // Media attachment endpoints
 discussionRouter.post(
   "/upload-media",
@@ -46,6 +59,18 @@ discussionRouter.post(
   "/tv/:tmdbId/season/:season/episode/:episode/comments",
   authenticate,
   discussionController.createComment
+);
+
+discussionRouter.post(
+  "/movie/:tmdbId/reaction",
+  authenticate,
+  discussionController.upsertMovieReaction
+);
+
+discussionRouter.post(
+  "/movie/:tmdbId/comments",
+  authenticate,
+  discussionController.createMovieComment
 );
 
 discussionRouter.post(

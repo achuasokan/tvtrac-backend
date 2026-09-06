@@ -4,9 +4,18 @@ import { IDiscussionService } from "./discussion.service.interface.js";
 import { IDiscussionRepository } from "../repositories/discussion.repository.interface.js";
 import { TmdbCacheService } from "../../tmdb/services/tmdbCache.service.js";
 import { TrackedItemModel } from "../../tracking/models/trackedItem.schema.js";
-import { UpsertReactionDTO, CreateCommentDTO, GetCommentsQueryDTO, EpisodeSummaryDTO } from "../dtos/discussion.dto.js";
+import {
+  UpsertReactionDTO,
+  UpsertMovieReactionDTO,
+  CreateCommentDTO,
+  GetCommentsQueryDTO,
+  EpisodeSummaryDTO,
+  MovieSummaryDTO,
+} from "../dtos/discussion.dto.js";
 import { IEpisodeReaction } from "../models/episodeReaction.schema.js";
 import { IEpisodeComment } from "../models/episodeComment.schema.js";
+import { IMovieReaction } from "../models/movieReaction.schema.js";
+import { IMovieComment } from "../models/movieComment.schema.js";
 import { cloudinary } from "../../../shared/utils/cloudinary.js";
 
 @injectable()
@@ -346,7 +355,10 @@ export class DiscussionService implements IDiscussionService {
   }
 
   public async revealComment(commentId: string, userId: string): Promise<any> {
-    const comment = await this.discussionRepository.getCommentById(commentId);
+    let comment: any = await this.discussionRepository.getCommentById(commentId);
+    if (!comment) {
+      comment = await this.discussionRepository.getMovieCommentById(commentId);
+    }
     if (!comment) {
       throw new Error("Comment not found");
     }
@@ -364,7 +376,10 @@ export class DiscussionService implements IDiscussionService {
   }
 
   public async deleteComment(commentId: string, userId: string): Promise<boolean> {
-    const deletedComment = await this.discussionRepository.deleteComment(commentId, userId);
+    let deletedComment: any = await this.discussionRepository.deleteComment(commentId, userId);
+    if (!deletedComment) {
+      deletedComment = await this.discussionRepository.deleteMovieComment(commentId, userId);
+    }
     if (!deletedComment) {
       return false;
     }
@@ -428,5 +443,182 @@ export class DiscussionService implements IDiscussionService {
     userId: string
   ): Promise<{ isLiked: boolean; likeCount: number }> {
     return this.discussionRepository.toggleLike(commentId, userId);
+  }
+
+  private async isMovieWatchedByUser(
+    userId: string | undefined,
+    tmdbId: string
+  ): Promise<boolean> {
+    if (!userId) return false;
+
+    const tracked = await TrackedItemModel.findOne({
+      user: userId,
+      tmdbId: String(tmdbId),
+      mediaType: "movie",
+    }).lean();
+
+    return Boolean(tracked);
+  }
+
+  private async getCanonicalMovieCast(
+    tmdbId: string
+  ): Promise<Array<{ id: number; name: string; actorName: string; profilePath: string | null }>> {
+    try {
+      const movieDetails = await this.tmdbCacheService.getCachedTitleDetails("movie", String(tmdbId));
+      const castList = movieDetails?.credits?.cast;
+      if (!castList || !Array.isArray(castList)) return [];
+
+      return castList.map((member: any) => ({
+        id: member.id,
+        name: member.character || member.name,
+        actorName: member.name || member.original_name,
+        profilePath: member.profile_path || null,
+      }));
+    } catch (err) {
+      console.warn("[DiscussionService] Failed to load movie cast for validation:", err);
+      return [];
+    }
+  }
+
+  public async getMovieSummary(
+    tmdbId: string,
+    userId?: string
+  ): Promise<MovieSummaryDTO> {
+    const [rawSummary, totalComments, isWatched, userReaction, canonicalCast] = await Promise.all([
+      this.discussionRepository.getMovieReactionSummary(tmdbId),
+      this.discussionRepository.getMovieCommentCount(tmdbId),
+      this.isMovieWatchedByUser(userId, tmdbId),
+      userId ? this.discussionRepository.getUserMovieReaction(userId, tmdbId) : Promise.resolve(null),
+      this.getCanonicalMovieCast(tmdbId),
+    ]);
+
+    const castLookup = new Map(canonicalCast.map((c) => [c.id, c]));
+    const totalMvpVotes = rawSummary.mvpVotes.reduce((acc, curr) => acc + curr.count, 0);
+
+    const mvpLeaderboard = rawSummary.mvpVotes.map((vote) => {
+      const canonical = castLookup.get(vote.characterId);
+      return {
+        characterId: vote.characterId,
+        name: canonical?.name || "Unknown Character",
+        actorName: canonical?.actorName || "",
+        profilePath: canonical?.profilePath || null,
+        voteCount: vote.count,
+        percentage: totalMvpVotes > 0 ? Math.round((vote.count / totalMvpVotes) * 100) : 0,
+      };
+    });
+
+    return {
+      ratingStats: rawSummary.ratingStats,
+      mvpLeaderboard,
+      totalComments,
+      userReaction: userReaction ? {
+        characterId: userReaction.characterId ?? null,
+        rating: userReaction.rating ?? null,
+        platform: userReaction.platform ?? null,
+      } : null,
+      isWatchedByMe: isWatched,
+    };
+  }
+
+  public async getMovieComments(
+    tmdbId: string,
+    query: GetCommentsQueryDTO,
+    userId?: string
+  ): Promise<{
+    comments: Array<any>;
+    nextCursor: string | null;
+    hasMore: boolean;
+    isWatchedByMe: boolean;
+  }> {
+    const isWatched = await this.isMovieWatchedByUser(userId, tmdbId);
+    const result = await this.discussionRepository.getMovieComments(tmdbId, query);
+
+    const commentIds = result.comments.map((c) => String(c._id));
+    const [likedSet, actualCounts] = await Promise.all([
+      userId ? this.discussionRepository.getUserLikedCommentIds(commentIds, userId) : Promise.resolve(new Set<string>()),
+      this.discussionRepository.getActualLikeCounts(commentIds),
+    ]);
+
+    const sanitizedComments = result.comments.map((c) => {
+      const likeCount = actualCounts.has(String(c._id)) ? actualCounts.get(String(c._id))! : c.likeCount;
+      const isSpoiler = Boolean(c.isSpoiler);
+      const isMediaMasked = isSpoiler && !isWatched && !query.reveal;
+
+      return {
+        _id: c._id,
+        user: c.user,
+        content: isSpoiler && !isWatched && !query.reveal ? null : c.content,
+        media: isMediaMasked
+          ? (c.media ? { type: c.media.type, url: "" } : null)
+          : c.media,
+        isSpoiler,
+        isMediaMasked,
+        likeCount,
+        isLikedByMe: likedSet.has(String(c._id)),
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      };
+    });
+
+    return {
+      comments: sanitizedComments,
+      nextCursor: result.nextCursor,
+      hasMore: result.hasMore,
+      isWatchedByMe: isWatched,
+    };
+  }
+
+  public async upsertMovieReaction(
+    userId: string,
+    tmdbId: string,
+    dto: UpsertMovieReactionDTO
+  ): Promise<IMovieReaction> {
+    // Validation 1: Rating range
+    if (dto.rating !== undefined && dto.rating !== null) {
+      const r = Number(dto.rating);
+      if (isNaN(r) || r < 1 || r > 10) {
+        throw new Error("Rating must be a number between 1 and 10");
+      }
+      dto.rating = Math.round(r);
+    }
+
+    // Validation 2: Canonical Character ID verification
+    if (dto.characterId !== undefined && dto.characterId !== null) {
+      const cId = Number(dto.characterId);
+      const cast = await this.getCanonicalMovieCast(tmdbId);
+      const isValidCharacter = cast.some((member) => member.id === cId);
+
+      if (!isValidCharacter && cast.length > 0) {
+        throw new Error("Selected character does not belong to this movie");
+      }
+      dto.characterId = cId;
+    }
+
+    // Validation 3: Platform sanitization
+    if (dto.platform !== undefined && dto.platform !== null) {
+      dto.platform = String(dto.platform).trim().slice(0, 100);
+      if (dto.platform.length === 0) dto.platform = null;
+    }
+
+    return this.discussionRepository.upsertMovieReaction(userId, tmdbId, dto);
+  }
+
+  public async createMovieComment(
+    userId: string,
+    tmdbId: string,
+    dto: CreateCommentDTO
+  ): Promise<IMovieComment> {
+    const hasContent = dto.content && dto.content.trim().length > 0;
+    const hasMedia = dto.mediaId && dto.mediaId.trim().length > 0;
+
+    if (!hasContent && !hasMedia) {
+      throw new Error("A comment must have either text content or an attached media item");
+    }
+
+    if (dto.content && dto.content.length > 2000) {
+      throw new Error("Comment text cannot exceed 2000 characters");
+    }
+
+    return this.discussionRepository.createMovieComment(userId, tmdbId, dto);
   }
 }

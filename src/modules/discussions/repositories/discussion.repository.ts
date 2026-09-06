@@ -3,9 +3,11 @@ import { Types } from "mongoose";
 import { IDiscussionRepository } from "./discussion.repository.interface.js";
 import { EpisodeReactionModel, IEpisodeReaction } from "../models/episodeReaction.schema.js";
 import { EpisodeCommentModel, IEpisodeComment, IEpisodeCommentMediaProjection } from "../models/episodeComment.schema.js";
+import { MovieReactionModel, IMovieReaction } from "../models/movieReaction.schema.js";
+import { MovieCommentModel, IMovieComment, IMovieCommentMediaProjection } from "../models/movieComment.schema.js";
 import { CommentLikeModel } from "../models/commentLike.schema.js";
 import { DiscussionMediaModel, IDiscussionMedia } from "../models/discussionMedia.schema.js";
-import { UpsertReactionDTO, CreateCommentDTO, GetCommentsQueryDTO } from "../dtos/discussion.dto.js";
+import { UpsertReactionDTO, UpsertMovieReactionDTO, CreateCommentDTO, GetCommentsQueryDTO } from "../dtos/discussion.dto.js";
 
 @injectable()
 export class DiscussionRepository implements IDiscussionRepository {
@@ -388,7 +390,10 @@ export class DiscussionRepository implements IDiscussionRepository {
 
     // 2. Exactly synchronize likeCount with actual documents in CommentLikeModel
     const actualLikeCount = await CommentLikeModel.countDocuments({ commentId: cId });
-    await EpisodeCommentModel.findByIdAndUpdate(cId, { $set: { likeCount: actualLikeCount } });
+    const epUpdated = await EpisodeCommentModel.findByIdAndUpdate(cId, { $set: { likeCount: actualLikeCount } });
+    if (!epUpdated) {
+      await MovieCommentModel.findByIdAndUpdate(cId, { $set: { likeCount: actualLikeCount } });
+    }
 
     return { isLiked: !existing, likeCount: actualLikeCount };
   }
@@ -398,6 +403,218 @@ export class DiscussionRepository implements IDiscussionRepository {
       tmdbId: String(tmdbId),
       season: Number(season),
       episode: Number(episode),
+    });
+  }
+
+  public async upsertMovieReaction(
+    userId: string,
+    tmdbId: string,
+    dto: UpsertMovieReactionDTO
+  ): Promise<IMovieReaction> {
+    const filter = {
+      user: new Types.ObjectId(userId),
+      tmdbId: String(tmdbId),
+    };
+
+    const update: any = {};
+    if (dto.characterId !== undefined) update.characterId = dto.characterId;
+    if (dto.rating !== undefined) update.rating = dto.rating;
+    if (dto.platform !== undefined) update.platform = dto.platform;
+
+    const reaction = await MovieReactionModel.findOneAndUpdate(
+      filter,
+      { $set: update },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    return reaction;
+  }
+
+  public async getUserMovieReaction(
+    userId: string,
+    tmdbId: string
+  ): Promise<IMovieReaction | null> {
+    return MovieReactionModel.findOne({
+      user: new Types.ObjectId(userId),
+      tmdbId: String(tmdbId),
+    }).lean();
+  }
+
+  public async getMovieReactionSummary(
+    tmdbId: string
+  ): Promise<{
+    ratingStats: { averageRating: number | null; totalRatings: number };
+    mvpVotes: Array<{ characterId: number; count: number }>;
+  }> {
+    const match = {
+      tmdbId: String(tmdbId),
+    };
+
+    const [ratingAgg, mvpAgg] = await Promise.all([
+      MovieReactionModel.aggregate([
+        { $match: { ...match, rating: { $ne: null } } },
+        {
+          $group: {
+            _id: null,
+            averageRating: { $avg: "$rating" },
+            totalRatings: { $sum: 1 },
+          },
+        },
+      ]),
+      MovieReactionModel.aggregate([
+        { $match: { ...match, characterId: { $ne: null } } },
+        { $group: { _id: "$characterId", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+      ]),
+    ]);
+
+    const ratingStats = {
+      averageRating: ratingAgg.length > 0 ? Math.round(ratingAgg[0].averageRating * 10) / 10 : null,
+      totalRatings: ratingAgg.length > 0 ? ratingAgg[0].totalRatings : 0,
+    };
+
+    const mvpVotes = mvpAgg.map((m) => ({
+      characterId: Number(m._id),
+      count: m.count,
+    }));
+
+    return {
+      ratingStats,
+      mvpVotes,
+    };
+  }
+
+  public async createMovieComment(
+    userId: string,
+    tmdbId: string,
+    dto: CreateCommentDTO
+  ): Promise<IMovieComment> {
+    const commentObjectId = new Types.ObjectId();
+    let mediaProjection: IMovieCommentMediaProjection | null = null;
+
+    if (dto.mediaId && dto.mediaId.trim().length > 0) {
+      const attachedMedia = await this.atomicallyAttachMedia(
+        dto.mediaId.trim(),
+        userId,
+        commentObjectId
+      );
+
+      if (!attachedMedia) {
+        throw new Error("Invalid or expired media attachment. Please re-select your media.");
+      }
+
+      mediaProjection = {
+        mediaId: attachedMedia._id,
+        type: attachedMedia.type,
+        provider: attachedMedia.provider,
+        url: attachedMedia.url,
+      };
+    }
+
+    const comment = await MovieCommentModel.create({
+      _id: commentObjectId,
+      user: new Types.ObjectId(userId),
+      tmdbId: String(tmdbId),
+      content: dto.content ? dto.content.trim() : "",
+      media: mediaProjection,
+      isSpoiler: Boolean(dto.isSpoiler),
+      likeCount: 0,
+    });
+
+    return comment.populate("user", "username name avatar profileImage");
+  }
+
+  public async deleteMovieComment(commentId: string, userId: string): Promise<IMovieComment | null> {
+    const comment = await MovieCommentModel.findOneAndDelete({
+      _id: new Types.ObjectId(commentId),
+      user: new Types.ObjectId(userId),
+    });
+
+    if (comment) {
+      await CommentLikeModel.deleteMany({ commentId: new Types.ObjectId(commentId) });
+      return comment;
+    }
+    return null;
+  }
+
+  public async getMovieCommentById(commentId: string): Promise<IMovieComment | null> {
+    return MovieCommentModel.findById(commentId).populate("user", "username name avatar profileImage");
+  }
+
+  public async getMovieComments(
+    tmdbId: string,
+    options: GetCommentsQueryDTO
+  ): Promise<{ comments: IMovieComment[]; nextCursor: string | null; hasMore: boolean }> {
+    const limit = Math.min(Math.max(Number(options.limit) || 20, 1), 50);
+    const sort = options.sort === "newest" ? "newest" : "top";
+
+    const baseQuery: any = {
+      tmdbId: String(tmdbId),
+    };
+
+    if (options.hideSpoilers) {
+      baseQuery.isSpoiler = false;
+    }
+
+    if (options.cursor) {
+      try {
+        const decoded = JSON.parse(Buffer.from(options.cursor, "base64").toString("utf-8"));
+        if (sort === "newest" && decoded.createdAt && decoded._id) {
+          const cursorDate = new Date(decoded.createdAt);
+          const cursorId = new Types.ObjectId(decoded._id);
+          baseQuery.$or = [
+            { createdAt: { $lt: cursorDate } },
+            { createdAt: cursorDate, _id: { $lt: cursorId } },
+          ];
+        } else if (sort === "top" && decoded.likeCount !== undefined && decoded._id) {
+          const cursorLikes = Number(decoded.likeCount);
+          const cursorId = new Types.ObjectId(decoded._id);
+          baseQuery.$or = [
+            { likeCount: { $lt: cursorLikes } },
+            { likeCount: cursorLikes, _id: { $lt: cursorId } },
+          ];
+        }
+      } catch (err) {
+        console.warn("[DiscussionRepository] Failed to decode cursor:", err);
+      }
+    }
+
+    const sortDef: any = sort === "newest"
+      ? { createdAt: -1, _id: -1 }
+      : { likeCount: -1, _id: -1 };
+
+    const items = await MovieCommentModel.find(baseQuery)
+      .sort(sortDef)
+      .limit(limit + 1)
+      .populate("user", "username name avatar profileImage")
+      .lean();
+
+    const hasMore = items.length > limit;
+    const comments = hasMore ? items.slice(0, limit) : items;
+
+    let nextCursor: string | null = null;
+    if (hasMore && comments.length > 0) {
+      const lastItem = comments[comments.length - 1];
+      if (lastItem) {
+        const cursorPayload =
+          sort === "newest"
+            ? { createdAt: (lastItem.createdAt as Date).toISOString(), _id: String(lastItem._id) }
+            : { likeCount: lastItem.likeCount, _id: String(lastItem._id) };
+        nextCursor = Buffer.from(JSON.stringify(cursorPayload)).toString("base64");
+      }
+    }
+
+    return {
+      comments: comments as IMovieComment[],
+      nextCursor,
+      hasMore,
+    };
+  }
+
+  public async getMovieCommentCount(tmdbId: string): Promise<number> {
+    return MovieCommentModel.countDocuments({
+      tmdbId: String(tmdbId),
     });
   }
 }

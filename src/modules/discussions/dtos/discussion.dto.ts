@@ -58,3 +58,31 @@ export interface EpisodeSummaryDTO {
   } | null;
   isWatchedByMe: boolean;
 }
+
+export interface UpsertMovieReactionDTO {
+  characterId?: number | null;
+  rating?: number | null;
+  platform?: string | null;
+}
+
+export interface MovieSummaryDTO {
+  ratingStats: {
+    averageRating: number | null;
+    totalRatings: number;
+  };
+  mvpLeaderboard: Array<{
+    characterId: number;
+    name: string;
+    actorName: string;
+    profilePath: string | null;
+    voteCount: number;
+    percentage: number;
+  }>;
+  totalComments: number;
+  userReaction?: {
+    characterId?: number | null;
+    rating?: number | null;
+    platform?: string | null;
+  } | null;
+  isWatchedByMe: boolean;
+}

@@ -1,6 +1,15 @@
 import { IEpisodeReaction } from "../models/episodeReaction.schema.js";
 import { IEpisodeComment } from "../models/episodeComment.schema.js";
-import { UpsertReactionDTO, CreateCommentDTO, GetCommentsQueryDTO, EpisodeSummaryDTO } from "../dtos/discussion.dto.js";
+import { IMovieReaction } from "../models/movieReaction.schema.js";
+import { IMovieComment } from "../models/movieComment.schema.js";
+import {
+  UpsertReactionDTO,
+  UpsertMovieReactionDTO,
+  CreateCommentDTO,
+  GetCommentsQueryDTO,
+  EpisodeSummaryDTO,
+  MovieSummaryDTO,
+} from "../dtos/discussion.dto.js";
 
 export interface IDiscussionService {
   getEpisodeSummary(
@@ -62,4 +71,32 @@ export interface IDiscussionService {
   ): Promise<{ isLiked: boolean; likeCount: number }>;
 
   processPendingMediaCleanup(): Promise<{ cleanedDeletions: number; cleanedOrphans: number }>;
+
+  getMovieSummary(
+    tmdbId: string,
+    userId?: string
+  ): Promise<MovieSummaryDTO>;
+
+  getMovieComments(
+    tmdbId: string,
+    query: GetCommentsQueryDTO,
+    userId?: string
+  ): Promise<{
+    comments: Array<any>;
+    nextCursor: string | null;
+    hasMore: boolean;
+    isWatchedByMe: boolean;
+  }>;
+
+  upsertMovieReaction(
+    userId: string,
+    tmdbId: string,
+    dto: UpsertMovieReactionDTO
+  ): Promise<IMovieReaction>;
+
+  createMovieComment(
+    userId: string,
+    tmdbId: string,
+    dto: CreateCommentDTO
+  ): Promise<IMovieComment>;
 }

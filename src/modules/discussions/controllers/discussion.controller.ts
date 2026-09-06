@@ -221,4 +221,107 @@ export class DiscussionController {
       return sendResponse(res, HTTP_STATUS.INTERNAL_SERVER_ERROR, error.message || "Failed to toggle like");
     }
   };
+
+  public getMovieSummary = async (req: Request, res: Response) => {
+    try {
+      const { tmdbId } = req.params;
+      const userId = (req as any).user?.userId as string;
+
+      if (!tmdbId) {
+        return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "Missing tmdbId parameter");
+      }
+
+      const summary = await this.discussionService.getMovieSummary(
+        String(tmdbId),
+        userId
+      );
+
+      return sendResponse(res, HTTP_STATUS.OK, "Movie summary fetched successfully", summary);
+    } catch (error: any) {
+      console.error("[DiscussionController] getMovieSummary error:", error);
+      return sendResponse(res, HTTP_STATUS.INTERNAL_SERVER_ERROR, error.message || "Failed to fetch movie summary");
+    }
+  };
+
+  public getMovieComments = async (req: Request, res: Response) => {
+    try {
+      const { tmdbId } = req.params;
+      const userId = (req as any).user?.userId as string;
+
+      if (!tmdbId) {
+        return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "Missing tmdbId parameter");
+      }
+
+      const sort = req.query.sort === "newest" ? "newest" : "top";
+      const cursor = req.query.cursor ? String(req.query.cursor) : undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : 20;
+      const hideSpoilers = req.query.hideSpoilers === "true";
+      const reveal = req.query.reveal === "true";
+
+      const data = await this.discussionService.getMovieComments(
+        String(tmdbId),
+        { sort, cursor, limit, hideSpoilers, reveal },
+        userId
+      );
+
+      return sendResponse(res, HTTP_STATUS.OK, "Movie comments fetched successfully", data);
+    } catch (error: any) {
+      console.error("[DiscussionController] getMovieComments error:", error);
+      return sendResponse(res, HTTP_STATUS.INTERNAL_SERVER_ERROR, error.message || "Failed to fetch movie comments");
+    }
+  };
+
+  public upsertMovieReaction = async (req: Request, res: Response) => {
+    try {
+      const { tmdbId } = req.params;
+      const userId = (req as any).user?.userId as string;
+
+      if (!userId) {
+        return sendResponse(res, HTTP_STATUS.UNAUTHORIZED, "Authentication required");
+      }
+
+      const { characterId, rating, platform } = req.body;
+
+      const reaction = await this.discussionService.upsertMovieReaction(
+        userId,
+        String(tmdbId),
+        { characterId, rating, platform }
+      );
+
+      return sendResponse(res, HTTP_STATUS.OK, "Movie reaction updated successfully", reaction);
+    } catch (error: any) {
+      console.error("[DiscussionController] upsertMovieReaction error:", error);
+      const isValidationError = error.message.includes("Rating") ||
+        error.message.includes("character");
+      return sendResponse(
+        res,
+        isValidationError ? HTTP_STATUS.BAD_REQUEST : HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        error.message || "Failed to update movie reaction"
+      );
+    }
+  };
+
+  public createMovieComment = async (req: Request, res: Response) => {
+    try {
+      const { tmdbId } = req.params;
+      const userId = (req as any).user?.userId as string;
+
+      if (!userId) {
+        return sendResponse(res, HTTP_STATUS.UNAUTHORIZED, "Authentication required");
+      }
+
+      const { content, isSpoiler, mediaId } = req.body;
+
+      const comment = await this.discussionService.createMovieComment(
+        userId,
+        String(tmdbId),
+        { content, isSpoiler, mediaId }
+      );
+
+      return sendResponse(res, HTTP_STATUS.CREATED, "Movie comment created successfully", comment);
+    } catch (error: any) {
+      console.error("[DiscussionController] createMovieComment error:", error);
+      return sendResponse(res, HTTP_STATUS.BAD_REQUEST, error.message || "Failed to create movie comment");
+    }
+  };
 }
