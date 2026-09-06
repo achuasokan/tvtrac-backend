@@ -3,6 +3,7 @@ import { container } from "../../../di/container.js";
 import { TYPES } from "../../../di/types.js";
 import { DiscussionController } from "../controllers/discussion.controller.js";
 import { authenticate } from "../../../middlewares/auth.middleware.js";
+import { uploadDiscussionMedia } from "../../../shared/utils/cloudinary.js";
 
 const discussionRouter = Router();
 const discussionController = container.get<DiscussionController>(TYPES.DiscussionController);
@@ -20,7 +21,21 @@ discussionRouter.get(
   discussionController.getComments
 );
 
-// Protected endpoints (Authenticated users only)
+// Media attachment endpoints
+discussionRouter.post(
+  "/upload-media",
+  authenticate,
+  uploadDiscussionMedia.single("media"),
+  discussionController.uploadMedia
+);
+
+discussionRouter.post(
+  "/attach-gif",
+  authenticate,
+  discussionController.attachGif
+);
+
+// Comment actions
 discussionRouter.post(
   "/tv/:tmdbId/season/:season/episode/:episode/reaction",
   authenticate,
@@ -31,6 +46,12 @@ discussionRouter.post(
   "/tv/:tmdbId/season/:season/episode/:episode/comments",
   authenticate,
   discussionController.createComment
+);
+
+discussionRouter.post(
+  "/comments/:commentId/reveal",
+  authenticate,
+  discussionController.revealComment
 );
 
 discussionRouter.delete(

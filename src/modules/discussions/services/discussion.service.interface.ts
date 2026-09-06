@@ -39,10 +39,27 @@ export interface IDiscussionService {
     dto: CreateCommentDTO
   ): Promise<IEpisodeComment>;
 
+  uploadMedia(
+    userId: string,
+    file: Express.Multer.File
+  ): Promise<{ mediaId: string; previewUrl: string; type: 'image' }>;
+
+  attachGif(
+    userId: string,
+    providerId: string
+  ): Promise<{ mediaId: string; previewUrl: string; type: 'gif' }>;
+
+  revealComment(
+    commentId: string,
+    userId: string
+  ): Promise<any>;
+
   deleteComment(commentId: string, userId: string): Promise<boolean>;
 
   toggleLike(
     commentId: string,
     userId: string
   ): Promise<{ isLiked: boolean; likeCount: number }>;
+
+  processPendingMediaCleanup(): Promise<{ cleanedDeletions: number; cleanedOrphans: number }>;
 }

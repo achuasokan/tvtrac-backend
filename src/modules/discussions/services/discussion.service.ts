@@ -7,6 +7,7 @@ import { TrackedItemModel } from "../../tracking/models/trackedItem.schema.js";
 import { UpsertReactionDTO, CreateCommentDTO, GetCommentsQueryDTO, EpisodeSummaryDTO } from "../dtos/discussion.dto.js";
 import { IEpisodeReaction } from "../models/episodeReaction.schema.js";
 import { IEpisodeComment } from "../models/episodeComment.schema.js";
+import { cloudinary } from "../../../shared/utils/cloudinary.js";
 
 @injectable()
 export class DiscussionService implements IDiscussionService {
@@ -142,6 +143,7 @@ export class DiscussionService implements IDiscussionService {
             emotion: userReaction.emotion || null,
             characterId: userReaction.characterId || null,
             rating: userReaction.rating || null,
+            platform: userReaction.platform || null,
           }
         : null,
       isWatchedByMe: isWatched,
@@ -179,15 +181,24 @@ export class DiscussionService implements IDiscussionService {
 
     const sanitizedComments = result.comments.map((c: any) => {
       const isSpoiler = Boolean(c.isSpoiler);
-      // Server-side spoiler masking: if user is not authorized/opted-in, hide content
-      const content = isSpoiler && !allowSpoilers ? null : c.content;
+      const allowContent = !isSpoiler || allowSpoilers;
+      const content = allowContent ? c.content : null;
       const likeCount = actualCounts.get(String(c._id)) ?? 0;
+
+      const hasMedia = Boolean(c.media?.url);
+      const media = allowContent && c.media ? {
+        type: c.media.type,
+        url: c.media.url,
+      } : null;
+      const isMediaMasked = isSpoiler && !allowSpoilers && hasMedia;
 
       return {
         _id: String(c._id),
         user: c.user,
         content,
+        media,
         isSpoiler,
+        isMediaMasked,
         likeCount,
         isLikedByMe: likedSet.has(String(c._id)),
         createdAt: c.createdAt,
@@ -242,7 +253,69 @@ export class DiscussionService implements IDiscussionService {
       dto.characterId = cId;
     }
 
+    // Validation 4: Platform sanitization
+    if (dto.platform !== undefined && dto.platform !== null) {
+      dto.platform = String(dto.platform).trim().slice(0, 100);
+      if (dto.platform.length === 0) dto.platform = null;
+    }
+
     return this.discussionRepository.upsertReaction(userId, tmdbId, sNum, eNum, dto);
+  }
+
+  public async uploadMedia(
+    userId: string,
+    file: Express.Multer.File
+  ): Promise<{ mediaId: string; previewUrl: string; type: 'image' }> {
+    if (!file) {
+      throw new Error("No image file provided");
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error("Image file size exceeds maximum limit of 10MB");
+    }
+
+    const pendingMedia = await this.discussionRepository.createPendingMedia({
+      userId,
+      type: 'image',
+      provider: 'cloudinary',
+      url: file.path,
+      publicId: file.filename,
+    });
+
+    return {
+      mediaId: pendingMedia._id.toString(),
+      previewUrl: pendingMedia.url,
+      type: 'image',
+    };
+  }
+
+  public async attachGif(
+    userId: string,
+    providerId: string
+  ): Promise<{ mediaId: string; previewUrl: string; type: 'gif' }> {
+    if (!providerId || typeof providerId !== "string") {
+      throw new Error("GIPHY provider ID is required");
+    }
+
+    const trimmedId = providerId.trim();
+    if (!/^[a-zA-Z0-9_-]{6,50}$/.test(trimmedId)) {
+      throw new Error("Invalid GIPHY provider ID format");
+    }
+
+    const canonicalUrl = `https://i.giphy.com/media/${trimmedId}/200.gif`;
+
+    const pendingMedia = await this.discussionRepository.createPendingMedia({
+      userId,
+      type: 'gif',
+      provider: 'giphy',
+      url: canonicalUrl,
+      providerId: trimmedId,
+    });
+
+    return {
+      mediaId: pendingMedia._id.toString(),
+      previewUrl: pendingMedia.url,
+      type: 'gif',
+    };
   }
 
   public async createComment(
@@ -252,10 +325,14 @@ export class DiscussionService implements IDiscussionService {
     episode: number,
     dto: CreateCommentDTO
   ): Promise<IEpisodeComment> {
-    if (!dto.content || !dto.content.trim()) {
-      throw new Error("Comment content cannot be empty");
+    const hasContent = Boolean(dto.content && dto.content.trim().length > 0);
+    const hasMedia = Boolean(dto.mediaId && dto.mediaId.trim().length > 0);
+
+    if (!hasContent && !hasMedia) {
+      throw new Error("Comment must contain either text or a media attachment");
     }
-    if (dto.content.trim().length > 2000) {
+
+    if (hasContent && dto.content!.trim().length > 2000) {
       throw new Error("Comment exceeds maximum length of 2000 characters");
     }
 
@@ -268,8 +345,82 @@ export class DiscussionService implements IDiscussionService {
     );
   }
 
+  public async revealComment(commentId: string, userId: string): Promise<any> {
+    const comment = await this.discussionRepository.getCommentById(commentId);
+    if (!comment) {
+      throw new Error("Comment not found");
+    }
+
+    return {
+      _id: String(comment._id),
+      content: comment.content,
+      media: comment.media ? {
+        type: comment.media.type,
+        url: comment.media.url,
+      } : null,
+      isSpoiler: Boolean(comment.isSpoiler),
+      isMediaMasked: false,
+    };
+  }
+
   public async deleteComment(commentId: string, userId: string): Promise<boolean> {
-    return this.discussionRepository.deleteComment(commentId, userId);
+    const deletedComment = await this.discussionRepository.deleteComment(commentId, userId);
+    if (!deletedComment) {
+      return false;
+    }
+
+    // If deleted comment had Cloudinary media, trigger non-blocking async cleanup
+    if (deletedComment.media?.provider === 'cloudinary') {
+      await this.discussionRepository.markMediaForDeletion(commentId);
+      const mediaDoc = await this.discussionRepository.findMediaByCommentId(commentId);
+      if (mediaDoc && mediaDoc.publicId) {
+        setImmediate(async () => {
+          try {
+            await cloudinary.uploader.destroy(mediaDoc.publicId!);
+            await this.discussionRepository.markMediaDeleted(mediaDoc._id.toString());
+          } catch (err) {
+            console.error("[CloudinaryDelete] Non-blocking destroy error:", err);
+          }
+        });
+      }
+    }
+
+    return true;
+  }
+
+  public async processPendingMediaCleanup(): Promise<{ cleanedDeletions: number; cleanedOrphans: number }> {
+    let cleanedDeletions = 0;
+    let cleanedOrphans = 0;
+
+    // 1. Retry pending deletions
+    const pendingDeletions = await this.discussionRepository.findPendingDeletionMedia();
+    for (const item of pendingDeletions) {
+      if (item.provider === 'cloudinary' && item.publicId) {
+        try {
+          await cloudinary.uploader.destroy(item.publicId);
+          await this.discussionRepository.markMediaDeleted(item._id.toString());
+          cleanedDeletions++;
+        } catch (err) {
+          console.error("[MediaCleanup] Retry destroy failed:", err);
+        }
+      }
+    }
+
+    // 2. Clean orphan pending uploads older than 24h
+    const orphans = await this.discussionRepository.findOrphanMedia(24);
+    for (const orphan of orphans) {
+      if (orphan.provider === 'cloudinary' && orphan.publicId) {
+        try {
+          await cloudinary.uploader.destroy(orphan.publicId);
+        } catch (err) {
+          console.error("[MediaCleanup] Orphan destroy failed:", err);
+        }
+      }
+      await this.discussionRepository.markMediaDeleted(orphan._id.toString());
+      cleanedOrphans++;
+    }
+
+    return { cleanedDeletions, cleanedOrphans };
   }
 
   public async toggleLike(

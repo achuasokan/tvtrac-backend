@@ -8,6 +8,7 @@ export interface IEpisodeReaction extends Document {
   emotion?: 'mindblown' | 'loved' | 'funny' | 'epic' | 'tense' | 'shocked' | 'emotional' | 'confused' | 'angry' | 'boring' | null;
   characterId?: number | null;
   rating?: number | null;
+  platform?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +45,10 @@ const episodeReactionSchema = new Schema<IEpisodeReaction>(
       type: Number,
       min: 1,
       max: 10,
+      default: null,
+    },
+    platform: {
+      type: String,
       default: null,
     },
   },

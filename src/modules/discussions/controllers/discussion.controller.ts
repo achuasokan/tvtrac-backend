@@ -71,14 +71,14 @@ export class DiscussionController {
         return sendResponse(res, HTTP_STATUS.UNAUTHORIZED, "Authentication required");
       }
 
-      const { emotion, characterId, rating } = req.body;
+      const { emotion, characterId, rating, platform } = req.body;
 
       const reaction = await this.discussionService.upsertReaction(
         userId,
         String(tmdbId),
         Number(season),
         Number(episode),
-        { emotion, characterId, rating }
+        { emotion, characterId, rating, platform }
       );
 
       return sendResponse(res, HTTP_STATUS.OK, "Reaction updated successfully", reaction);
@@ -95,6 +95,46 @@ export class DiscussionController {
     }
   };
 
+  public uploadMedia = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.userId as string;
+      if (!userId) {
+        return sendResponse(res, HTTP_STATUS.UNAUTHORIZED, "Authentication required");
+      }
+
+      const file = (req as any).file as Express.Multer.File;
+      if (!file) {
+        return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "No image file provided");
+      }
+
+      const result = await this.discussionService.uploadMedia(userId, file);
+      return sendResponse(res, HTTP_STATUS.CREATED, "Media uploaded successfully", result);
+    } catch (error: any) {
+      console.error("[DiscussionController] uploadMedia error:", error);
+      return sendResponse(res, HTTP_STATUS.BAD_REQUEST, error.message || "Failed to upload media");
+    }
+  };
+
+  public attachGif = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.userId as string;
+      if (!userId) {
+        return sendResponse(res, HTTP_STATUS.UNAUTHORIZED, "Authentication required");
+      }
+
+      const { providerId } = req.body;
+      if (!providerId) {
+        return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "GIPHY providerId is required");
+      }
+
+      const result = await this.discussionService.attachGif(userId, String(providerId));
+      return sendResponse(res, HTTP_STATUS.CREATED, "GIF attached successfully", result);
+    } catch (error: any) {
+      console.error("[DiscussionController] attachGif error:", error);
+      return sendResponse(res, HTTP_STATUS.BAD_REQUEST, error.message || "Failed to attach GIF");
+    }
+  };
+
   public createComment = async (req: Request, res: Response) => {
     try {
       const { tmdbId, season, episode } = req.params;
@@ -104,24 +144,41 @@ export class DiscussionController {
         return sendResponse(res, HTTP_STATUS.UNAUTHORIZED, "Authentication required");
       }
 
-      const { content, isSpoiler } = req.body;
-
-      if (!content || !content.trim()) {
-        return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "Comment content is required");
-      }
+      const { content, isSpoiler, mediaId } = req.body;
 
       const comment = await this.discussionService.createComment(
         userId,
         String(tmdbId),
         Number(season),
         Number(episode),
-        { content, isSpoiler: Boolean(isSpoiler) }
+        {
+          content: content !== undefined ? String(content) : undefined,
+          isSpoiler: Boolean(isSpoiler),
+          mediaId: mediaId ? String(mediaId) : undefined,
+        }
       );
 
       return sendResponse(res, HTTP_STATUS.CREATED, "Comment created successfully", comment);
     } catch (error: any) {
       console.error("[DiscussionController] createComment error:", error);
       return sendResponse(res, HTTP_STATUS.BAD_REQUEST, error.message || "Failed to create comment");
+    }
+  };
+
+  public revealComment = async (req: Request, res: Response) => {
+    try {
+      const { commentId } = req.params;
+      const userId = (req as any).user?.userId as string;
+
+      if (!userId) {
+        return sendResponse(res, HTTP_STATUS.UNAUTHORIZED, "Authentication required");
+      }
+
+      const result = await this.discussionService.revealComment(String(commentId), userId);
+      return sendResponse(res, HTTP_STATUS.OK, "Comment revealed successfully", result);
+    } catch (error: any) {
+      console.error("[DiscussionController] revealComment error:", error);
+      return sendResponse(res, HTTP_STATUS.BAD_REQUEST, error.message || "Failed to reveal comment");
     }
   };
 

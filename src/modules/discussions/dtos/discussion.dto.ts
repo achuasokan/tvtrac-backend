@@ -2,11 +2,17 @@ export interface UpsertReactionDTO {
   emotion?: 'mindblown' | 'loved' | 'funny' | 'epic' | 'tense' | 'shocked' | 'emotional' | 'confused' | 'angry' | 'boring' | null;
   characterId?: number | null;
   rating?: number | null;
+  platform?: string | null;
 }
 
 export interface CreateCommentDTO {
-  content: string;
+  content?: string;
   isSpoiler?: boolean;
+  mediaId?: string;
+}
+
+export interface AttachGifDTO {
+  providerId: string;
 }
 
 export interface GetCommentsQueryDTO {
@@ -48,6 +54,7 @@ export interface EpisodeSummaryDTO {
     emotion?: string | null;
     characterId?: number | null;
     rating?: number | null;
+    platform?: string | null;
   } | null;
   isWatchedByMe: boolean;
 }

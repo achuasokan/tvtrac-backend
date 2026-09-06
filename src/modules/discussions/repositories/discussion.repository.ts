@@ -2,8 +2,9 @@ import { injectable } from "inversify";
 import { Types } from "mongoose";
 import { IDiscussionRepository } from "./discussion.repository.interface.js";
 import { EpisodeReactionModel, IEpisodeReaction } from "../models/episodeReaction.schema.js";
-import { EpisodeCommentModel, IEpisodeComment } from "../models/episodeComment.schema.js";
+import { EpisodeCommentModel, IEpisodeComment, IEpisodeCommentMediaProjection } from "../models/episodeComment.schema.js";
 import { CommentLikeModel } from "../models/commentLike.schema.js";
+import { DiscussionMediaModel, IDiscussionMedia } from "../models/discussionMedia.schema.js";
 import { UpsertReactionDTO, CreateCommentDTO, GetCommentsQueryDTO } from "../dtos/discussion.dto.js";
 
 @injectable()
@@ -26,6 +27,7 @@ export class DiscussionRepository implements IDiscussionRepository {
     if (dto.emotion !== undefined) update.emotion = dto.emotion;
     if (dto.characterId !== undefined) update.characterId = dto.characterId;
     if (dto.rating !== undefined) update.rating = dto.rating;
+    if (dto.platform !== undefined) update.platform = dto.platform;
 
     const reaction = await EpisodeReactionModel.findOneAndUpdate(
       filter,
@@ -130,6 +132,75 @@ export class DiscussionRepository implements IDiscussionRepository {
     };
   }
 
+  public async createPendingMedia(data: {
+    userId: string;
+    type: 'image' | 'gif';
+    provider: 'cloudinary' | 'giphy';
+    url: string;
+    publicId?: string;
+    providerId?: string;
+  }): Promise<IDiscussionMedia> {
+    return DiscussionMediaModel.create({
+      userId: new Types.ObjectId(data.userId),
+      type: data.type,
+      provider: data.provider,
+      url: data.url,
+      publicId: data.publicId,
+      providerId: data.providerId,
+      status: 'pending',
+    });
+  }
+
+  public async atomicallyAttachMedia(
+    mediaId: string,
+    userId: string,
+    commentId: string | Types.ObjectId
+  ): Promise<IDiscussionMedia | null> {
+    return DiscussionMediaModel.findOneAndUpdate(
+      {
+        _id: new Types.ObjectId(mediaId),
+        userId: new Types.ObjectId(userId),
+        status: 'pending',
+      },
+      {
+        $set: {
+          status: 'attached',
+          commentId: typeof commentId === 'string' ? new Types.ObjectId(commentId) : commentId,
+        },
+      },
+      { new: true }
+    );
+  }
+
+  public async findMediaByCommentId(commentId: string): Promise<IDiscussionMedia | null> {
+    return DiscussionMediaModel.findOne({ commentId: new Types.ObjectId(commentId) });
+  }
+
+  public async markMediaForDeletion(commentId: string): Promise<IDiscussionMedia | null> {
+    return DiscussionMediaModel.findOneAndUpdate(
+      { commentId: new Types.ObjectId(commentId) },
+      { $set: { status: 'pending_deletion' } },
+      { new: true }
+    );
+  }
+
+  public async findPendingDeletionMedia(): Promise<IDiscussionMedia[]> {
+    return DiscussionMediaModel.find({ status: 'pending_deletion' }).limit(50);
+  }
+
+  public async findOrphanMedia(olderThanHours: number): Promise<IDiscussionMedia[]> {
+    const cutoff = new Date(Date.now() - olderThanHours * 60 * 60 * 1000);
+    return DiscussionMediaModel.find({ status: 'pending', createdAt: { $lt: cutoff } }).limit(50);
+  }
+
+  public async markMediaDeleted(mediaId: string): Promise<boolean> {
+    const res = await DiscussionMediaModel.updateOne(
+      { _id: new Types.ObjectId(mediaId) },
+      { $set: { status: 'deleted' } }
+    );
+    return res.modifiedCount > 0;
+  }
+
   public async createComment(
     userId: string,
     tmdbId: string,
@@ -137,12 +208,36 @@ export class DiscussionRepository implements IDiscussionRepository {
     episode: number,
     dto: CreateCommentDTO
   ): Promise<IEpisodeComment> {
+    const commentObjectId = new Types.ObjectId();
+    let mediaProjection: IEpisodeCommentMediaProjection | null = null;
+
+    if (dto.mediaId && dto.mediaId.trim().length > 0) {
+      const attachedMedia = await this.atomicallyAttachMedia(
+        dto.mediaId.trim(),
+        userId,
+        commentObjectId
+      );
+
+      if (!attachedMedia) {
+        throw new Error("Invalid or expired media attachment. Please re-select your media.");
+      }
+
+      mediaProjection = {
+        mediaId: attachedMedia._id,
+        type: attachedMedia.type,
+        provider: attachedMedia.provider,
+        url: attachedMedia.url,
+      };
+    }
+
     const comment = await EpisodeCommentModel.create({
+      _id: commentObjectId,
       user: new Types.ObjectId(userId),
       tmdbId: String(tmdbId),
       season: Number(season),
       episode: Number(episode),
-      content: dto.content.trim(),
+      content: dto.content ? dto.content.trim() : "",
+      media: mediaProjection,
       isSpoiler: Boolean(dto.isSpoiler),
       likeCount: 0,
     });
@@ -150,7 +245,7 @@ export class DiscussionRepository implements IDiscussionRepository {
     return comment.populate("user", "username name avatar profileImage");
   }
 
-  public async deleteComment(commentId: string, userId: string): Promise<boolean> {
+  public async deleteComment(commentId: string, userId: string): Promise<IEpisodeComment | null> {
     const comment = await EpisodeCommentModel.findOneAndDelete({
       _id: new Types.ObjectId(commentId),
       user: new Types.ObjectId(userId),
@@ -159,9 +254,9 @@ export class DiscussionRepository implements IDiscussionRepository {
     if (comment) {
       // Clean up like records for deleted comment
       await CommentLikeModel.deleteMany({ commentId: new Types.ObjectId(commentId) });
-      return true;
+      return comment;
     }
-    return false;
+    return null;
   }
 
   public async getCommentById(commentId: string): Promise<IEpisodeComment | null> {
