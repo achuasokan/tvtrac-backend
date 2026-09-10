@@ -4,14 +4,17 @@ import { youtubeService } from '../services/youtube.service.js';
 export class YoutubeController {
   async getSoundtrack(req: Request, res: Response): Promise<void> {
     try {
-      const { q } = req.query;
+      const { q, composer, refresh } = req.query;
       
       if (!q || typeof q !== 'string') {
         res.status(400).json({ error: 'Search query "q" is required' });
         return;
       }
 
-      const result = await youtubeService.searchSoundtrack(q);
+      const composerStr = typeof composer === 'string' ? composer : undefined;
+      const isRefresh = refresh === 'true' || refresh === '1';
+
+      const result = await youtubeService.searchSoundtrack(q, composerStr, isRefresh);
       
       if (result) {
         res.status(200).json(result);
