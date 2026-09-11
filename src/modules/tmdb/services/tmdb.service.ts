@@ -119,7 +119,7 @@ export class TmdbService {
     const params: Record<string, string> = {
       language: "en-US",
       sort_by: "popularity.desc",
-      include_adult: "false",
+      include_adult: "true",
       "vote_count.gte": "5",
       page,
     };
@@ -229,7 +229,7 @@ export class TmdbService {
     const params: Record<string, string> = {
       language: "en-US",
       sort_by: actualSortBy,
-      include_adult: "false",
+      include_adult: "true",
       "vote_count.gte": "20",
       page
     };
@@ -278,7 +278,7 @@ export class TmdbService {
     const params: Record<string, string> = {
       page: (page as string) || "1",
       language: "en-US",
-      include_adult: "false",
+      include_adult: "true",
     };
     
     for (const [key, value] of Object.entries(rest)) {
@@ -294,7 +294,7 @@ export class TmdbService {
     return this.fetchFromTmdb("/search/multi", {
       query,
       page,
-      include_adult: "false",
+      include_adult: "true",
       language: "en-US",
     });
   }
@@ -370,6 +370,7 @@ export class TmdbService {
       with_companies: companyId,
       sort_by: sortBy,
       page,
+      include_adult: "true",
       "vote_count.gte": "10",
       language: language || "en-US",
     };
@@ -386,6 +387,7 @@ export class TmdbService {
       with_keywords: keywordId,
       sort_by: sortBy,
       page,
+      include_adult: "true",
       "vote_count.gte": "10",
       language: "en-US",
     };
