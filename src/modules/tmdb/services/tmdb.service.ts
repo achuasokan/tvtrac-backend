@@ -290,13 +290,49 @@ export class TmdbService {
     return this.fetchFromTmdb(endpoint, params);
   }
 
-  async search(query: string, page: string = "1") {
-    return this.fetchFromTmdb("/search/multi", {
-      query,
-      page,
-      include_adult: "true",
-      language: "en-US",
+  async search(query: string, page: string = "1", year?: string) {
+    if (!year) {
+      return this.fetchFromTmdb("/search/multi", {
+        query,
+        page,
+        include_adult: "true",
+        language: "en-US",
+      });
+    }
+
+    const [movies, tv] = await Promise.all([
+      this.fetchFromTmdb("/search/movie", {
+        query,
+        page,
+        primary_release_year: year,
+        include_adult: "true",
+        language: "en-US"
+      }),
+      this.fetchFromTmdb("/search/tv", {
+        query,
+        page,
+        first_air_date_year: year,
+        include_adult: "true",
+        language: "en-US"
+      })
+    ]);
+
+    const mergedResults = [...(movies.results || []), ...(tv.results || [])]
+      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+
+    const typedResults = mergedResults.map(item => {
+      if (!item.media_type) {
+        item.media_type = item.first_air_date ? "tv" : "movie";
+      }
+      return item;
     });
+
+    return {
+      page: Number(page),
+      results: typedResults,
+      total_pages: Math.max(movies.total_pages || 1, tv.total_pages || 1),
+      total_results: (movies.total_results || 0) + (tv.total_results || 0)
+    };
   }
   async getTitleDetails(mediaType: string, id: string) {
     if (mediaType !== "tv" && mediaType !== "movie") {

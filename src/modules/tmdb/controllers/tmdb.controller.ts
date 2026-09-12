@@ -146,7 +146,7 @@ export class TmdbController {
       if (!query) {
         return res.status(400).json({ error: "Missing query parameter 'q'" });
       }
-      const data = await this.tmdbService.search(query, page);
+      const data = await this.tmdbCacheService.getCachedSearch(query, page);
       res.json(data);
     } catch (error: any) {
       console.error("TMDB Search Error:", error);
