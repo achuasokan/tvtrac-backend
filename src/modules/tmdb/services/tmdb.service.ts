@@ -119,7 +119,7 @@ export class TmdbService {
     const params: Record<string, string> = {
       language: "en-US",
       sort_by: "popularity.desc",
-      include_adult: "false",
+      include_adult: "true",
       "vote_count.gte": "5",
       page,
     };
@@ -229,7 +229,7 @@ export class TmdbService {
     const params: Record<string, string> = {
       language: "en-US",
       sort_by: actualSortBy,
-      include_adult: "false",
+      include_adult: "true",
       "vote_count.gte": "20",
       page
     };
@@ -278,7 +278,7 @@ export class TmdbService {
     const params: Record<string, string> = {
       page: (page as string) || "1",
       language: "en-US",
-      include_adult: "false",
+      include_adult: "true",
     };
     
     for (const [key, value] of Object.entries(rest)) {
@@ -290,13 +290,49 @@ export class TmdbService {
     return this.fetchFromTmdb(endpoint, params);
   }
 
-  async search(query: string, page: string = "1") {
-    return this.fetchFromTmdb("/search/multi", {
-      query,
-      page,
-      include_adult: "false",
-      language: "en-US",
+  async search(query: string, page: string = "1", year?: string) {
+    if (!year) {
+      return this.fetchFromTmdb("/search/multi", {
+        query,
+        page,
+        include_adult: "true",
+        language: "en-US",
+      });
+    }
+
+    const [movies, tv] = await Promise.all([
+      this.fetchFromTmdb("/search/movie", {
+        query,
+        page,
+        primary_release_year: year,
+        include_adult: "true",
+        language: "en-US"
+      }),
+      this.fetchFromTmdb("/search/tv", {
+        query,
+        page,
+        first_air_date_year: year,
+        include_adult: "true",
+        language: "en-US"
+      })
+    ]);
+
+    const mergedResults = [...(movies.results || []), ...(tv.results || [])]
+      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+
+    const typedResults = mergedResults.map(item => {
+      if (!item.media_type) {
+        item.media_type = item.first_air_date ? "tv" : "movie";
+      }
+      return item;
     });
+
+    return {
+      page: Number(page),
+      results: typedResults,
+      total_pages: Math.max(movies.total_pages || 1, tv.total_pages || 1),
+      total_results: (movies.total_results || 0) + (tv.total_results || 0)
+    };
   }
   async getTitleDetails(mediaType: string, id: string) {
     if (mediaType !== "tv" && mediaType !== "movie") {
@@ -370,6 +406,7 @@ export class TmdbService {
       with_companies: companyId,
       sort_by: sortBy,
       page,
+      include_adult: "true",
       "vote_count.gte": "10",
       language: language || "en-US",
     };
@@ -386,6 +423,7 @@ export class TmdbService {
       with_keywords: keywordId,
       sort_by: sortBy,
       page,
+      include_adult: "true",
       "vote_count.gte": "10",
       language: "en-US",
     };

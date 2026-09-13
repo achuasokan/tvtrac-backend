@@ -169,4 +169,22 @@ export class TmdbCacheService implements ITmdbCacheService {
     async getCachedCollection(collectionId: string) {
         return this.getOrSetCache(`collection_${collectionId}`, "collection", () => this.tmdbService.getCollection(collectionId));
     }
+
+    async getCachedSearch(query: string, page: string = "1") {
+        let normalizedQuery = query.trim().toLowerCase();
+        let year: string | undefined;
+        
+        // Detect a trailing 4-digit year between 1900 and 2099
+        const yearMatch = normalizedQuery.match(/\b(19|20)\d{2}$/);
+        if (yearMatch) {
+            year = yearMatch[0];
+            normalizedQuery = normalizedQuery.slice(0, -year.length).trim();
+        }
+
+        const key = year 
+            ? `search_${normalizedQuery}_year_${year}_page_${page}` 
+            : `search_${normalizedQuery}_page_${page}`;
+            
+        return this.getOrSetCache(key, "list", () => this.tmdbService.search(normalizedQuery || year || query, page, year));
+    }
 }
