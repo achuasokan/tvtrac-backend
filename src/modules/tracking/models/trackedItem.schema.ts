@@ -4,10 +4,12 @@ export interface ITrackedItem extends Document {
     user: Types.ObjectId;
     tmdbId: string;
     mediaType: string;
-    watchedEpisodes: { season: number; episode: number; watchedAt?: Date; runtime?: number }[];
+    watchedEpisodes: { season: number; episode: number; watchedAt?: Date | null; runtime?: number }[];
     ignorePreviousEpisodesPrompt: boolean;
     episodeRuntime: number; // minutes per episode (TV shows)
     movieRuntime: number;   // total runtime in minutes (movies)
+    watchedDate?: Date | null; // watch date for movies
+    userRating?: number | null; // rating 1-10
     createdAt: Date;
 }
 
@@ -45,6 +47,16 @@ const trackedItemSchema = new Schema(
         movieRuntime: {
             type: Number,
             default: 0,
+        },
+        watchedDate: {
+            type: Date,
+            required: false,
+        },
+        userRating: {
+            type: Number,
+            min: 1,
+            max: 10,
+            required: false,
         },
     },
     {

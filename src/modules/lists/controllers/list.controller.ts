@@ -93,7 +93,7 @@ export class ListController {
                 return sendResponse(res, HTTP_STATUS.BAD_REQUEST, LIST_MESSAGES.ERROR_MISSING_ITEM_DATA);
             }
 
-            const list = await this.listService.addToList(userId, listId, dto.tmdbId, dto.mediaType);
+            const list = await this.listService.addToList(userId, listId, dto.tmdbId, dto.mediaType, dto.position);
             return sendResponse(res, HTTP_STATUS.OK, LIST_MESSAGES.ITEM_ADDED, list);
         } catch (error: any) {
             console.error("Add to List Error:", error);
@@ -140,4 +140,49 @@ export class ListController {
             return sendResponse(res, HTTP_STATUS.INTERNAL_SERVER_ERROR, LIST_MESSAGES.ERROR_DELETE_FAILED);
         }
     };
+
+    public importBatch = async (req: Request, res: Response) => {
+        try {
+            const userId = (req as any).user?.userId as string;
+            if (!userId) {
+                return sendResponse(res, HTTP_STATUS.UNAUTHORIZED, "Unauthorized");
+            }
+
+            const { name, description, items } = req.body;
+            if (!name || typeof name !== "string" || !name.trim()) {
+                return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "List name is required");
+            }
+
+            if (!items || !Array.isArray(items)) {
+                return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "Items must be an array");
+            }
+
+            if (items.length === 0) {
+                return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "Batch cannot be empty");
+            }
+
+            if (items.length > 20) {
+                return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "Batch size exceeds maximum limit of 20 items");
+            }
+
+            for (const item of items) {
+                if (!item || typeof item !== "object") {
+                    return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "Invalid item format in batch");
+                }
+                if (!item.mediaType || !['movie', 'tv'].includes(item.mediaType)) {
+                    return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "mediaType must be 'movie' or 'tv'");
+                }
+                if (item.position === undefined || isNaN(Number(item.position)) || Number(item.position) < 0) {
+                    return sendResponse(res, HTTP_STATUS.BAD_REQUEST, "position must be a non-negative integer");
+                }
+            }
+
+            const result = await this.listService.importBatch(userId, { name, description, items });
+            return sendResponse(res, HTTP_STATUS.OK, "Batch imported successfully", result);
+        } catch (error: any) {
+            console.error("Import List Batch Error:", error);
+            return sendResponse(res, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to process list import batch");
+        }
+    };
 }
+

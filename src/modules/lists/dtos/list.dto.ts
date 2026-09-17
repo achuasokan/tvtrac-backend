@@ -19,6 +19,7 @@ export interface ReorderListDTO {
 export interface AddListItemDTO {
     tmdbId: string;
     mediaType: 'movie' | 'tv';
+    position?: number;
 }
 
 export interface RemoveListItemDTO {

@@ -89,7 +89,13 @@ export class TmdbCacheService implements ITmdbCacheService {
                     await this.tmdbCacheRepository.upsertCache(cacheKey, type, freshData);
                     return freshData;
                 } catch (fetchError: any) {
-                    logger.error(`[TmdbCacheService] TMDB fetch failed for ${fullKey}: ${fetchError?.message}`);
+                    const isNotFound = fetchError?.message?.includes('could not be found') || fetchError?.message?.includes('404');
+                    if (isNotFound) {
+                        logger.warn(`[TmdbCacheService] TMDB resource not found for ${fullKey}`);
+                        await this.tmdbCacheRepository.upsertCache(cacheKey, type, { results: [], notFound: true, source: "fallback" });
+                    } else {
+                        logger.error(`[TmdbCacheService] TMDB fetch failed for ${fullKey}: ${fetchError?.message}`);
+                    }
                     // Return controlled fallback structure instead of throwing 500
                     return { results: [], source: "fallback" };
                 }
@@ -186,5 +192,17 @@ export class TmdbCacheService implements ITmdbCacheService {
             : `search_${normalizedQuery}_page_${page}`;
             
         return this.getOrSetCache(key, "list", () => this.tmdbService.search(normalizedQuery || year || query, page, year));
+    }
+
+    async getCachedFindByExternalId(externalId: string, source: 'tvdb_id' | 'imdb_id' = 'tvdb_id') {
+        const cleanId = String(externalId).trim();
+        const key = `find_${source}_${cleanId}`;
+        return this.getOrSetCache(key, "detail", () => this.tmdbService.findByExternalId(cleanId, source));
+    }
+
+    async getCachedAlternativeTitles(mediaType: 'movie' | 'tv', id: string) {
+        const cleanId = String(id).trim();
+        const key = `alt_titles_${mediaType}_${cleanId}`;
+        return this.getOrSetCache(key, "detail", () => this.tmdbService.getAlternativeTitles(mediaType, cleanId));
     }
 }

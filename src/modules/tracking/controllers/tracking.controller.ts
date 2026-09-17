@@ -117,4 +117,105 @@ export class TrackingController {
       res.status(500).json({ error: "Failed to fetch stats" });
     }
   };
+
+  public importBatch = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { items } = req.body;
+      if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "Invalid payload: 'items' must be an array" });
+      }
+
+      if (items.length === 0) {
+        return res.status(400).json({ error: "Batch cannot be empty" });
+      }
+
+      if (items.length > 20) {
+        return res.status(400).json({ error: "Batch size exceeds maximum limit of 20 items" });
+      }
+
+      // Payload validation
+      for (const item of items) {
+        if (!item || typeof item !== "object") {
+          return res.status(400).json({ error: "Invalid item format in batch" });
+        }
+        if (item.title && typeof item.title === "string" && item.title.length > 200) {
+          return res.status(400).json({ error: "Title exceeds maximum length of 200 characters" });
+        }
+        if (item.tvdbId && typeof item.tvdbId === "string" && item.tvdbId.length > 50) {
+          return res.status(400).json({ error: "TVDB ID exceeds maximum length of 50 characters" });
+        }
+        if (item.season !== undefined && (isNaN(Number(item.season)) || Number(item.season) < 0 || !Number.isInteger(Number(item.season)))) {
+          return res.status(400).json({ error: "Season must be a non-negative integer" });
+        }
+        if (item.episode !== undefined && (isNaN(Number(item.episode)) || Number(item.episode) < 0 || !Number.isInteger(Number(item.episode)))) {
+          return res.status(400).json({ error: "Episode must be a non-negative integer" });
+        }
+        if (item.watchedDate && isNaN(new Date(item.watchedDate).getTime())) {
+          return res.status(400).json({ error: "Invalid date format for watchedDate" });
+        }
+      }
+
+      const result = await this.trackingService.importTvTimeBatch(userId, items);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Import Batch Error:", error);
+      res.status(500).json({ error: "Failed to process import batch" });
+    }
+  };
+
+  public importMovieBatch = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { items } = req.body;
+      if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "Invalid payload: 'items' must be an array" });
+      }
+
+      if (items.length === 0) {
+        return res.status(400).json({ error: "Batch cannot be empty" });
+      }
+
+      if (items.length > 20) {
+        return res.status(400).json({ error: "Batch size exceeds maximum limit of 20 items" });
+      }
+
+      // Payload validation
+      for (const item of items) {
+        if (!item || typeof item !== "object") {
+          return res.status(400).json({ error: "Invalid item format in batch" });
+        }
+        if (item.title && typeof item.title === "string" && item.title.length > 200) {
+          return res.status(400).json({ error: "Title exceeds maximum length of 200 characters" });
+        }
+        if (item.imdbId && typeof item.imdbId === "string" && item.imdbId.length > 50) {
+          return res.status(400).json({ error: "IMDb ID exceeds maximum length of 50 characters" });
+        }
+        if (item.tvdbId && typeof item.tvdbId === "string" && item.tvdbId.length > 50) {
+          return res.status(400).json({ error: "TVDB ID exceeds maximum length of 50 characters" });
+        }
+        if (item.watchedDate && isNaN(new Date(item.watchedDate).getTime())) {
+          return res.status(400).json({ error: "Invalid date format for watchedDate" });
+        }
+        if (item.userRating !== undefined && (isNaN(Number(item.userRating)) || Number(item.userRating) < 1 || Number(item.userRating) > 10)) {
+          return res.status(400).json({ error: "userRating must be a number between 1 and 10" });
+        }
+      }
+
+      const result = await this.trackingService.importMovieBatch(userId, items);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Import Movie Batch Error:", error);
+      res.status(500).json({ error: "Failed to process movie import batch" });
+    }
+  };
 }
+

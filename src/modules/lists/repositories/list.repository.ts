@@ -35,14 +35,19 @@ export class ListRepository implements IListRepository {
         return await ListModel.findOne({ _id: listId, user: userId }).exec();
     }
 
-    public async addToList(userId: string, listId: string, tmdbId: string, mediaType: 'movie' | 'tv'): Promise<IList | null> {
+    public async addToList(userId: string, listId: string, tmdbId: string, mediaType: 'movie' | 'tv', position?: number): Promise<IList | null> {
         // Find list and add item if it doesn't already exist
         const list = await ListModel.findOne({ _id: listId, user: userId }).exec();
         if (!list) return null;
 
         const exists = list.items.some(item => item.tmdbId === tmdbId && item.mediaType === mediaType);
         if (!exists) {
-            list.items.push({ tmdbId, mediaType, addedAt: new Date() });
+            const newItem = { tmdbId, mediaType, addedAt: new Date() };
+            if (typeof position === 'number' && position >= 0 && position <= list.items.length) {
+                list.items.splice(position, 0, newItem);
+            } else {
+                list.items.push(newItem);
+            }
             await list.save();
         }
         return list;
