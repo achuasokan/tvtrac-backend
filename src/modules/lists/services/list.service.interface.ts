@@ -4,6 +4,7 @@ export interface ImportListItemDTO {
     tvdbId?: string;
     imdbId?: string;
     title?: string;
+    year?: number;
     mediaType?: 'movie' | 'tv';
     position: number;
 }

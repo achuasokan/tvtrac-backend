@@ -4,6 +4,7 @@ import { UserModel } from "../../auth/user.schema.js";
 import { ITmdbCacheService } from "../../tmdb/services/tmdbCache.service.interface.js";
 import { TYPES } from "../../../di/types.js";
 import logger from "../../../shared/logger.js";
+import { title } from "process";
 
 @injectable()
 export class TrackingService {
@@ -590,6 +591,20 @@ export class TrackingService {
     // Process each show group
     for (const [, group] of showGroups) {
       let tmdbId: string | null = null;
+      const rawTitle = group.title ? group.title.trim() : '';
+      let cleanTitle = rawTitle;
+      let titleYear: number | undefined = undefined;
+      let match = rawTitle.match(/^(.*?)\s*[\(\[]\s*(\d{4})\s*[\)\]]\s*$/);
+      if (!match) match = rawTitle.match(/^(.*?)\s*[-–—]\s*(\d{4})\s*$/);
+      if (!match) match = rawTitle.match(/^(.*?)\s+\b(19\d{2}|20\d{2})\b\s*$/);
+      if (match && match[1] && match[2]) {
+        const candYearNum = parseInt(match[2], 10);
+        const currentYear = new Date().getFullYear();
+        if (candYearNum >= 1880 && candYearNum <= currentYear + 2) {
+          cleanTitle = match[1].trim();
+          titleYear = candYearNum;
+        }
+      }
 
       // Strategy 1: TVDB ID lookup (preferred & deterministic)
       if (group.tvdbId) {
@@ -597,15 +612,43 @@ export class TrackingService {
           const findResult = await this.tmdbCacheService.getCachedFindByExternalId(group.tvdbId, 'tvdb_id');
           if (findResult?.tv_results && findResult.tv_results.length > 0) {
             const cand = findResult.tv_results[0];
-            // Validate candidate title against expected group.title to prevent episode ID collisions (e.g. Lost -> Aristocrats)
-            // Only exact alphanumeric-normalized equality is accepted — startsWith is NOT sufficient.
-            if (group.title) {
+            // Validate candidate title against expected cleanTitle to prevent episode ID collisions
+            if (cleanTitle) {
               const normCand = (cand.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-              const normExp = group.title.toLowerCase().replace(/\s*\(\d{4}\)$/, '').replace(/[^a-z0-9]/g, '');
+              const normExp = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
               if (normCand === normExp) {
-                tmdbId = String(cand.id);
+                const airYear = cand.first_air_date ? parseInt(cand.first_air_date.slice(0, 4), 10) : NaN;
+                if (titleYear && !isNaN(airYear) && Math.abs(airYear - titleYear) > 1) {
+                  logger.warn(`[TrackingService] Discarding TVDB ${group.tvdbId} collision: "${cand.name}" (${airYear}) contradicts expected year ${titleYear}`);
+                } else {
+                  // If no air year was provided, verify if TMDB has multiple productions with this exact title
+                  let isAmbiguous = false;
+                  if (!titleYear) {
+                    try {
+                      const searchCheck = await this.tmdbCacheService.getCachedSearch(cleanTitle, '1');
+                      const tvResults = (searchCheck?.results || []).filter(
+                        (r: any) => r.media_type === 'tv' || (!r.media_type && r.first_air_date)
+                      );
+                      const exact = tvResults.filter((r: any) => {
+                        const t = (r.name || r.original_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        return t === normExp;
+                      });
+                      const uniqueYears = new Set(exact.map((r: any) => (r.first_air_date ? r.first_air_date.slice(0, 4) : '')).filter(Boolean));
+                      if (uniqueYears.size > 1) {
+                        logger.warn(`[TrackingService] TV Show "${cleanTitle}" has ${uniqueYears.size} different productions (${Array.from(uniqueYears).join(', ')}). Quarantining to manual match.`);
+                        isAmbiguous = true;
+                      }
+                    } catch {
+                      // ignore
+                    }
+                  }
+
+                  if (!isAmbiguous) {
+                    tmdbId = String(cand.id);
+                  }
+                }
               } else {
-                logger.warn(`[TrackingService] Discarding TVDB ${group.tvdbId} collision: "${cand.name}" does not match "${group.title}"`);
+                logger.warn(`[TrackingService] Discarding TVDB ${group.tvdbId} collision: "${cand.name}" does not match "${cleanTitle}"`);
               }
             } else {
               tmdbId = String(cand.id);
@@ -617,14 +660,8 @@ export class TrackingService {
       }
 
       // Strategy 2: Title search fallback (if no TVDB ID or if TVDB ID had a title collision)
-      if (!tmdbId && group.title) {
+      if (!tmdbId && cleanTitle) {
         try {
-          const rawTitle = group.title.trim();
-          // Extract year in parentheses if present, e.g. "Soundtrack (2022)" -> cleanTitle: "Soundtrack", titleYear: "2022"
-          const yearParenMatch = rawTitle.match(/^(.*?)\s*\((\d{4})\)$/);
-          const cleanTitle = (yearParenMatch && yearParenMatch[1]) ? yearParenMatch[1].trim() : rawTitle;
-          const titleYear = (yearParenMatch && yearParenMatch[2]) ? parseInt(yearParenMatch[2], 10) : undefined;
-
           // Helper to normalize strings for comparison (lowercase, unify apostrophes, quotes, ellipsis, whitespace)
           const norm = (s?: string) =>
             (s || '')
@@ -672,17 +709,12 @@ export class TrackingService {
                   const airYear = r.first_air_date ? parseInt(r.first_air_date.slice(0, 4), 10) : NaN;
                   return airYear === titleYear;
                 });
-                if (exactYearMatches.length > 0) {
-                  exactYearMatches.sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0));
+                if (exactYearMatches.length === 1) {
                   tmdbId = String(exactYearMatches[0].id);
-                } else {
-                  exactMatches.sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0));
-                  tmdbId = String(exactMatches[0].id);
                 }
-              } else {
-                exactMatches.sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0));
-                tmdbId = String(exactMatches[0].id);
               }
+              // If no release year is available to distinguish multiple exact title matches,
+              // do NOT guess by popularity; leave tmdbId null so user can safely choose in Match drawer.
             }
           }
         } catch (err: any) {
@@ -867,15 +899,30 @@ export class TrackingService {
         let tmdbId: string | null = null;
         const imdbId = item.imdbId ? String(item.imdbId).trim() : undefined;
         const tvdbId = item.tvdbId ? String(item.tvdbId).trim() : undefined;
-        const title = item.title ? String(item.title).trim() : undefined;
+        const rawTitle = item.title ? String(item.title).trim() : undefined;
+        let cleanTitle = rawTitle;
+        let titleYear: number | undefined = item.year;
+        if (rawTitle) {
+          let match = rawTitle.match(/^(.*?)\s*[\(\[]\s*(\d{4})\s*[\)\]]\s*$/);
+          if (!match) match = rawTitle.match(/^(.*?)\s*[-–—]\s*(\d{4})\s*$/);
+          if (!match) match = rawTitle.match(/^(.*?)\s+\b(19\d{2}|20\d{2})\b\s*$/);
+          if (match && match[1] && match[2]) {
+            const candYearNum = parseInt(match[2], 10);
+            const currentYear = new Date().getFullYear();
+            if (candYearNum >= 1880 && candYearNum <= currentYear + 2) {
+              cleanTitle = match[1].trim();
+              if (!titleYear) titleYear = candYearNum;
+            }
+          }
+        }
 
         // Check in-memory batch cache
         if (imdbId && resolutionCache.has(`imdb:${imdbId}`)) {
           tmdbId = resolutionCache.get(`imdb:${imdbId}`)!;
         } else if (tvdbId && resolutionCache.has(`tvdb:${tvdbId}`)) {
           tmdbId = resolutionCache.get(`tvdb:${tvdbId}`)!;
-        } else if (title && resolutionCache.has(`title:${title.toLowerCase()}`)) {
-          tmdbId = resolutionCache.get(`title:${title.toLowerCase()}`)!;
+        } else if (cleanTitle && resolutionCache.has(`title:${cleanTitle.toLowerCase()}`)) {
+          tmdbId = resolutionCache.get(`title:${cleanTitle.toLowerCase()}`)!;
         }
 
         // Strategy 1: IMDb ID -> TMDB /find (movie_results ONLY)
@@ -885,15 +932,43 @@ export class TrackingService {
             const movieResults = findData?.movie_results || [];
             if (movieResults.length > 0 && movieResults[0].id) {
               const cand = movieResults[0];
-              if (title) {
+              if (cleanTitle) {
                 const normCand = (cand.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                const normExp = title.toLowerCase().replace(/\s*\(\d{4}\)$/, '').replace(/[^a-z0-9]/g, '');
+                const normExp = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
                 // Only exact alphanumeric-normalized equality — startsWith is NOT sufficient.
                 if (normCand === normExp) {
-                  tmdbId = String(cand.id);
-                  resolutionCache.set(`imdb:${imdbId}`, tmdbId);
+                  const candYear = cand.release_date ? parseInt(cand.release_date.slice(0, 4), 10) : NaN;
+                  if (titleYear && !isNaN(candYear) && Math.abs(candYear - titleYear) > 1) {
+                    logger.warn(`[TrackingService] Discarding IMDb ${imdbId} collision: candidate year ${candYear} conflicts with expected ${titleYear}`);
+                  } else {
+                    let isAmbiguous = false;
+                    if (!titleYear) {
+                      try {
+                        const searchCheck = await this.tmdbCacheService.getCachedSearch(cleanTitle, '1');
+                        const searchResults = (searchCheck?.results || []).filter(
+                          (r: any) => r.media_type === 'movie' || (!r.media_type && r.release_date && !r.first_air_date)
+                        );
+                        const exact = searchResults.filter((r: any) => {
+                          const t = (r.title || r.original_title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                          return t === normExp;
+                        });
+                        const uniqueYears = new Set(exact.map((r: any) => (r.release_date ? r.release_date.slice(0, 4) : '')).filter(Boolean));
+                        if (uniqueYears.size > 1) {
+                          logger.warn(`[TrackingService] Title "${cleanTitle}" has ${uniqueYears.size} different productions (${Array.from(uniqueYears).join(', ')}). Quarantining to manual match.`);
+                          isAmbiguous = true;
+                        }
+                      } catch {
+                        // ignore
+                      }
+                    }
+
+                    if (!isAmbiguous) {
+                      tmdbId = String(cand.id);
+                      resolutionCache.set(`imdb:${imdbId}`, tmdbId);
+                    }
+                  }
                 } else {
-                  logger.warn(`[TrackingService] Discarding IMDb ${imdbId} collision: "${cand.title}" does not match "${title}"`);
+                  logger.warn(`[TrackingService] Discarding IMDb ${imdbId} collision: "${cand.title}" does not match "${cleanTitle}"`);
                 }
               } else {
                 tmdbId = String(cand.id);
@@ -912,15 +987,43 @@ export class TrackingService {
             const movieResults = findData?.movie_results || [];
             if (movieResults.length > 0 && movieResults[0].id) {
               const cand = movieResults[0];
-              if (title) {
+              if (cleanTitle) {
                 const normCand = (cand.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                const normExp = title.toLowerCase().replace(/\s*\(\d{4}\)$/, '').replace(/[^a-z0-9]/g, '');
+                const normExp = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
                 // Only exact alphanumeric-normalized equality — startsWith is NOT sufficient.
                 if (normCand === normExp) {
-                  tmdbId = String(cand.id);
-                  resolutionCache.set(`tvdb:${tvdbId}`, tmdbId);
+                  const candYear = cand.release_date ? parseInt(cand.release_date.slice(0, 4), 10) : NaN;
+                  if (titleYear && !isNaN(candYear) && Math.abs(candYear - titleYear) > 1) {
+                    logger.warn(`[TrackingService] Discarding TVDB ${tvdbId} collision: candidate year ${candYear} conflicts with expected ${titleYear}`);
+                  } else {
+                    let isAmbiguous = false;
+                    if (!titleYear) {
+                      try {
+                        const searchCheck = await this.tmdbCacheService.getCachedSearch(cleanTitle, '1');
+                        const searchResults = (searchCheck?.results || []).filter(
+                          (r: any) => r.media_type === 'movie' || (!r.media_type && r.release_date && !r.first_air_date)
+                        );
+                        const exact = searchResults.filter((r: any) => {
+                          const t = (r.title || r.original_title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                          return t === normExp;
+                        });
+                        const uniqueYears = new Set(exact.map((r: any) => (r.release_date ? r.release_date.slice(0, 4) : '')).filter(Boolean));
+                        if (uniqueYears.size > 1) {
+                          logger.warn(`[TrackingService] Title "${cleanTitle}" has ${uniqueYears.size} different productions (${Array.from(uniqueYears).join(', ')}). Quarantining to manual match.`);
+                          isAmbiguous = true;
+                        }
+                      } catch {
+                        // ignore
+                      }
+                    }
+
+                    if (!isAmbiguous) {
+                      tmdbId = String(cand.id);
+                      resolutionCache.set(`tvdb:${tvdbId}`, tmdbId);
+                    }
+                  }
                 } else {
-                  logger.warn(`[TrackingService] Discarding TVDB ${tvdbId} collision: "${cand.title}" does not match "${title}"`);
+                  logger.warn(`[TrackingService] Discarding TVDB ${tvdbId} collision: "${cand.title}" does not match "${cleanTitle}"`);
                 }
               } else {
                 tmdbId = String(cand.id);
@@ -933,13 +1036,8 @@ export class TrackingService {
         }
 
         // Strategy 3: Title search fallback (restricted strictly to movies)
-        if (!tmdbId && title) {
+        if (!tmdbId && cleanTitle) {
           try {
-            const rawTitle = title.trim();
-            const yearParenMatch = rawTitle.match(/^(.*?)\s*\((\d{4})\)$/);
-            const cleanTitle = (yearParenMatch && yearParenMatch[1]) ? yearParenMatch[1].trim() : rawTitle;
-            const titleYear = (yearParenMatch && yearParenMatch[2]) ? parseInt(yearParenMatch[2], 10) : item.year;
-
             const norm = (s?: string) =>
               (s || '')
                 .toLowerCase()
@@ -956,7 +1054,7 @@ export class TrackingService {
               (r: any) => r.media_type === 'movie' || (!r.media_type && r.release_date && !r.first_air_date)
             );
 
-            if (movieResults.length === 0 && cleanTitle !== rawTitle) {
+            if (movieResults.length === 0 && cleanTitle !== rawTitle && rawTitle) {
               searchResult = await this.tmdbCacheService.getCachedSearch(rawTitle, '1');
               movieResults = (searchResult?.results || []).filter(
                 (r: any) => r.media_type === 'movie' || (!r.media_type && r.release_date && !r.first_air_date)
@@ -984,25 +1082,21 @@ export class TrackingService {
                     const rYear = r.release_date ? parseInt(r.release_date.slice(0, 4), 10) : NaN;
                     return rYear === titleYear;
                   });
-                  if (exactYearMatches.length > 0) {
-                    exactYearMatches.sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0));
+                  if (exactYearMatches.length === 1) {
                     tmdbId = String(exactYearMatches[0].id);
-                  } else {
-                    exactMatches.sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0));
-                    tmdbId = String(exactMatches[0].id);
                   }
-                } else {
-                  exactMatches.sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0));
-                  tmdbId = String(exactMatches[0].id);
+                  // If multiple exact matches share the same year, do not guess
                 }
+                // If no release year is available to distinguish multiple exact title matches,
+                // do NOT guess by popularity; leave tmdbId null so user can safely choose in Match drawer.
               }
             }
 
             if (tmdbId) {
-              resolutionCache.set(`title:${title.toLowerCase()}`, tmdbId);
+              resolutionCache.set(`title:${cleanTitle.toLowerCase()}`, tmdbId);
             }
           } catch (err: any) {
-            logger.warn(`[TrackingService] Title search fallback failed for movie ${title}: ${err?.message}`);
+            logger.warn(`[TrackingService] Title search fallback failed for movie ${cleanTitle}: ${err?.message}`);
           }
         }
 
