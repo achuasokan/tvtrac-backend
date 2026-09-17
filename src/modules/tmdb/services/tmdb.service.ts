@@ -339,7 +339,7 @@ export class TmdbService {
       throw new Error("Invalid media type");
     }
     const details = await this.fetchFromTmdb(`/${mediaType}/${id}`, {
-      append_to_response: "credits,videos,similar,recommendations,watch/providers,images,external_ids",
+      append_to_response: "credits,videos,similar,recommendations,watch/providers,images,external_ids,alternative_titles",
       include_image_language: "en,null",
       language: "en-US",
     });
@@ -429,5 +429,15 @@ export class TmdbService {
     };
     const endpoint = type === "tv" ? "/discover/tv" : "/discover/movie";
     return this.fetchFromTmdb(endpoint, params);
+  }
+
+  async findByExternalId(externalId: string, source: 'tvdb_id' | 'imdb_id' = 'tvdb_id') {
+    return this.fetchFromTmdb(`/find/${encodeURIComponent(externalId)}`, {
+      external_source: source,
+    });
+  }
+
+  async getAlternativeTitles(mediaType: 'movie' | 'tv', id: string) {
+    return this.fetchFromTmdb(`/${mediaType}/${id}/alternative_titles`);
   }
 }

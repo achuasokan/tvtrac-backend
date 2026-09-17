@@ -14,4 +14,6 @@ export interface ITmdbCacheService {
     getCachedDiscoverByKeyword(keywordId: string, page?: string, type?: string, sortBy?: string): Promise<any>;
     getCachedCollection(collectionId: string): Promise<any>;
     getCachedSearch(query: string, page?: string): Promise<any>;
+    getCachedFindByExternalId(externalId: string, source?: 'tvdb_id' | 'imdb_id'): Promise<any>;
+    getCachedAlternativeTitles?(mediaType: 'movie' | 'tv', id: string): Promise<any>;
 }

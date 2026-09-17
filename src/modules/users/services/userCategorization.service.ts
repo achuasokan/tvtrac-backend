@@ -63,6 +63,22 @@ export class UserCategorizationService implements IUserCategorizationService {
                 
                 for (const season of details.seasons) {
                     if (season.season_number === 0) continue;
+
+                    const seasonWatched = watchedEps.filter((we: any) => we.season === season.season_number);
+                    const isSeasonAbsolute = seasonWatched.some((we: any) => we.episode > season.episode_count);
+
+                    if (isSeasonAbsolute) {
+                        if (seasonWatched.length >= season.episode_count) {
+                            continue; // season fully watched
+                        }
+                        const epNum = seasonWatched.length + 1;
+                        nextEpisodeStr = `S${String(season.season_number).padStart(2, '0')} | E${String(epNum).padStart(2, '0')}`;
+                        nextEpisodeTitle = `Episode ${epNum}`;
+                        nextSeasonNum = season.season_number;
+                        nextEpisodeNum = epNum;
+                        found = true;
+                        break;
+                    }
                     
                     for (let epNum = 1; epNum <= season.episode_count; epNum++) {
                         // Check if this episode is unreleased
@@ -77,7 +93,7 @@ export class UserCategorizationService implements IUserCategorizationService {
                             break;
                         }
 
-                        const isWatched = watchedEps.some((we: any) => we.season === season.season_number && we.episode === epNum);
+                        const isWatched = seasonWatched.some((we: any) => we.episode === epNum);
                         if (!isWatched) {
                             nextEpisodeStr = `S${String(season.season_number).padStart(2, '0')} | E${String(epNum).padStart(2, '0')}`;
                             nextEpisodeTitle = `Episode ${epNum}`;

@@ -16,5 +16,7 @@ trackingRoute.post("/watched/season/toggle", trackingController.markSeasonWatche
 trackingRoute.post("/settings/ignore-previous-prompt", trackingController.setIgnorePreviousPrompt);
 trackingRoute.get("/history", trackingController.getWatchHistory);
 trackingRoute.get("/stats", trackingController.getStats);
+trackingRoute.post("/import/batch", trackingController.importBatch);
+trackingRoute.post("/import/movies/batch", trackingController.importMovieBatch);
 
 export default trackingRoute;

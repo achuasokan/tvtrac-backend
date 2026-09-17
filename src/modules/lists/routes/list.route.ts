@@ -17,5 +17,6 @@ listRouter.put("/:id/reorder", listController.reorderList);
 listRouter.post("/:id/items", listController.addToList);
 listRouter.delete("/:id/items", listController.removeFromList);
 listRouter.delete("/:id", listController.deleteList);
+listRouter.post("/import/batch", listController.importBatch);
 
 export default listRouter;
