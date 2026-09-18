@@ -19,4 +19,7 @@ export const TYPES = {
     DiscussionRepository: Symbol.for("DiscussionRepository"),
     DiscussionService: Symbol.for("DiscussionService"),
     DiscussionController: Symbol.for("DiscussionController"),
+    UnresolvedImportRepository: Symbol.for("UnresolvedImportRepository"),
+    ImportService: Symbol.for("ImportService"),
+    ImportController: Symbol.for("ImportController"),
 };

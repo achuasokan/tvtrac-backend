@@ -6,8 +6,11 @@ import http from 'http'
 import connectDB from './config/database.js'
 
 import app from './app.js'
+import { tvTimeImportWorker } from './modules/imports/workers/import.worker.js'
+import { tvTimeImportQueue } from './modules/imports/queues/import.queue.js'
+import { redisClient, queueRedisClient, workerRedisClient } from './config/redis.js'
 
-const startserver  = async () => {
+const startserver = async () => {
     try {
         await connectDB();
 
@@ -15,7 +18,31 @@ const startserver  = async () => {
         
         httpServer.listen(env.PORT, () => {
             logger.info(`server running on http://localhost:${env.PORT}`)
+            logger.info(`[BullMQ] tvtime-imports worker initialized with concurrency: ${env.IMPORT_WORKER_CONCURRENCY}`)
         })
+
+        const gracefulShutdown = async (signal: string) => {
+            logger.info(`Received ${signal}, starting graceful shutdown...`);
+            try {
+                await tvTimeImportWorker.close();
+                await tvTimeImportQueue.close();
+                await Promise.allSettled([
+                    redisClient.quit(),
+                    queueRedisClient.quit(),
+                    workerRedisClient.quit(),
+                ]);
+                httpServer.close(() => {
+                    logger.info("HTTP server closed.");
+                    process.exit(0);
+                });
+            } catch (err: any) {
+                logger.error("Error during graceful shutdown:", { error: err.message });
+                process.exit(1);
+            }
+        };
+
+        process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+        process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
         
     } catch (error) {
         logger.error(`Error starting server:`, { error })
