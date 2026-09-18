@@ -221,4 +221,28 @@ export class ImportService implements IImportService {
 
     return { success: true, message: "Cancellation signal sent. Worker will safely stop at the next checkpoint." };
   }
+
+  public async getActiveJob(userId: string): Promise<{ jobId: string } | null> {
+    const lockKey = `import:user:active:${userId}`;
+    const jobId = await redisClient.get(lockKey);
+    if (!jobId) return null;
+
+    try {
+      const job = await tvTimeImportQueue.getJob(jobId);
+      if (!job || job.data.userId !== userId) return null;
+
+      const state = await job.getState();
+      // Only reconnect to genuinely in-progress jobs
+      if (state === 'active' || state === 'waiting' || state === 'delayed') {
+        return { jobId };
+      }
+      // Also return completed jobs so the import page can show results
+      if (state === 'completed' || state === 'failed') {
+        return { jobId };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
 }

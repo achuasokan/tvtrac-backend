@@ -10,6 +10,9 @@ const importController = container.get<ImportController>(TYPES.ImportController)
 
 importRoute.use(authenticate);
 
+// Reconnect: check if user has an active import job on the server
+importRoute.get("/active", importController.getActiveJob);
+
 // Start import: accepts multiple CSV and JSON files
 importRoute.post("/tvtime", uploadTvTimeFiles.array("files", 10), importController.startTvTimeImport);
 

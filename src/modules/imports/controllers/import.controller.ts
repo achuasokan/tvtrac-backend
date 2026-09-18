@@ -134,4 +134,18 @@ export class ImportController {
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ error: err.message || "Failed to cancel import" });
     }
   };
+
+  public getActiveJob = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.userId as string;
+      if (!userId) {
+        return res.status(HTTP_STATUS.UNAUTHORIZED).json({ error: "Unauthorized" });
+      }
+
+      const result = await this.importService.getActiveJob(userId);
+      return res.status(HTTP_STATUS.OK).json({ success: true, data: result });
+    } catch (err: any) {
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ error: err.message || "Failed to fetch active job" });
+    }
+  };
 }

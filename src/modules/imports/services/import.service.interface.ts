@@ -28,4 +28,6 @@ export interface IImportService {
   ): Promise<{ success: boolean; message: string }>;
 
   cancelImport(userId: string, jobId: string): Promise<{ success: boolean; message: string }>;
+
+  getActiveJob(userId: string): Promise<{ jobId: string } | null>;
 }
