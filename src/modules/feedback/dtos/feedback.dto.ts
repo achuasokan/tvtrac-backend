@@ -1,11 +1,9 @@
 import { z } from "zod";
 
 export const createFeedbackSchema = z.object({
-  type: z.enum(["bug", "feature", "general"], {
-    errorMap: () => ({ message: "Type must be 'bug', 'feature', or 'general'" }),
-  }),
+  type: z.enum(["bug", "feature", "general"]),
   message: z
-    .string({ required_error: "Message is required" })
+    .string()
     .trim()
     .min(5, "Message must be at least 5 characters")
     .max(2000, "Message cannot exceed 2000 characters"),
