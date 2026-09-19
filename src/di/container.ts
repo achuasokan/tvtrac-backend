@@ -36,6 +36,18 @@ import { DiscussionRepository } from "../modules/discussions/repositories/discus
 import { IDiscussionService } from "../modules/discussions/services/discussion.service.interface.js";
 import { DiscussionService } from "../modules/discussions/services/discussion.service.js";
 import { DiscussionController } from "../modules/discussions/controllers/discussion.controller.js";
+import { IUnresolvedImportRepository } from "../modules/imports/repositories/unresolved-import.repository.interface.js";
+import { UnresolvedImportRepository } from "../modules/imports/repositories/unresolved-import.repository.js";
+import { IImportService } from "../modules/imports/services/import.service.interface.js";
+import { ImportService } from "../modules/imports/services/import.service.js";
+import { ImportController } from "../modules/imports/controllers/import.controller.js";
+
+import { IFeedbackRepository } from "../modules/feedback/repositories/feedback.repository.interface.js";
+import { FeedbackRepository } from "../modules/feedback/repositories/feedback.repository.js";
+import { IFeedbackService } from "../modules/feedback/services/feedback.service.interface.js";
+import { FeedbackService } from "../modules/feedback/services/feedback.service.js";
+import { FeedbackController } from "../modules/feedback/controllers/feedback.controller.js";
+import { TelegramNotificationService } from "../modules/feedback/services/telegram.service.js";
 
 const container = new Container();
 
@@ -62,6 +74,15 @@ container.bind<UserController>(TYPES.UserController).to(UserController);
 container.bind<IDiscussionRepository>(TYPES.DiscussionRepository).to(DiscussionRepository);
 container.bind<IDiscussionService>(TYPES.DiscussionService).to(DiscussionService);
 container.bind<DiscussionController>(TYPES.DiscussionController).to(DiscussionController);
+
+container.bind<IUnresolvedImportRepository>(TYPES.UnresolvedImportRepository).to(UnresolvedImportRepository);
+container.bind<IImportService>(TYPES.ImportService).to(ImportService);
+container.bind<ImportController>(TYPES.ImportController).to(ImportController);
+
+container.bind<IFeedbackRepository>(TYPES.FeedbackRepository).to(FeedbackRepository);
+container.bind<IFeedbackService>(TYPES.FeedbackService).to(FeedbackService);
+container.bind<FeedbackController>(TYPES.FeedbackController).to(FeedbackController);
+container.bind<TelegramNotificationService>(TYPES.TelegramService).to(TelegramNotificationService);
 
 export { container };
 

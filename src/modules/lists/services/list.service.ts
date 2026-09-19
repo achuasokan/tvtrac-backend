@@ -137,12 +137,24 @@ export class ListService implements IListService {
                 let resolvedMediaType: 'movie' | 'tv' | undefined = item.mediaType;
                 const rawTitle = item.title ? String(item.title).trim() : undefined;
                 let cleanTitle = rawTitle;
-                let titleYear: number | undefined = undefined;
+                let titleYear: number | undefined = item.year;
                 if (rawTitle) {
-                    const match = rawTitle.match(/^(.*?)\s*\((\d{4})\)$/);
+                    let match = rawTitle.match(/^(.*?)\s*[\(\[]\s*(\d{4})\s*[\)\]]\s*$/);
+                    if (!match) {
+                        match = rawTitle.match(/^(.*?)\s*[-–—]\s*(\d{4})\s*$/);
+                    }
+                    if (!match) {
+                        match = rawTitle.match(/^(.*?)\s+\b(19\d{2}|20\d{2})\b\s*$/);
+                    }
                     if (match && match[1] && match[2]) {
-                        cleanTitle = match[1].trim();
-                        titleYear = parseInt(match[2], 10);
+                        const candYearNum = parseInt(match[2], 10);
+                        const currentYear = new Date().getFullYear();
+                        if (candYearNum >= 1880 && candYearNum <= currentYear + 2) {
+                            cleanTitle = match[1].trim();
+                            if (!titleYear) {
+                                titleYear = candYearNum;
+                            }
+                        }
                     }
                 }
 
@@ -221,7 +233,7 @@ export class ListService implements IListService {
                         }
 
                         if (candidateId && candidateType) {
-                            const isPlausible = await this.validateExternalIdMatch(
+                            let isPlausible = await this.validateExternalIdMatch(
                                 candidateId,
                                 candidateType,
                                 candidateTitle,
@@ -232,10 +244,46 @@ export class ListService implements IListService {
                                 resolvedMediaType
                             );
 
+                            // Collision guard: If candidate matches title but source row has no release year,
+                            // verify whether TMDB has multiple productions with this exact title across different years
+                            // (e.g. Kiskisan 2024 vs Kiskisan 2003). An external ID without a year is not trustworthy if multiple productions exist.
+                            if (isPlausible && !titleYear && cleanTitle) {
+                                try {
+                                    const searchCheck = await this.tmdbCacheService.getCachedSearch(cleanTitle, '1');
+                                    const searchResults = (searchCheck?.results || []).filter(
+                                        (r: any) => r.media_type === candidateType || (!r.media_type && (candidateType === 'movie' ? r.release_date : r.first_air_date))
+                                    );
+                                    const exactMatches = searchResults.filter((r: any) => {
+                                        const t = candidateType === 'tv' ? (r.name || r.original_name) : (r.title || r.original_title);
+                                        return isExactTitleMatch(t, cleanTitle);
+                                    });
+
+                                    const uniqueYears = new Set(exactMatches.map((r: any) => {
+                                        const d = candidateType === 'tv' ? r.first_air_date : r.release_date;
+                                        return d ? d.slice(0, 4) : '';
+                                    }).filter(Boolean));
+
+                                    if (uniqueYears.size > 1) {
+                                        logger.warn(`[ListService] Title "${cleanTitle}" has ${uniqueYears.size} different productions (${Array.from(uniqueYears).join(', ')}). Quarantining to manual match drawer.`);
+                                        isPlausible = false;
+                                        resolutionStatus = 'ambiguous';
+                                        resolutionReason = `Ambiguous: Multiple productions match "${cleanTitle}" (${Array.from(uniqueYears).join(', ')}) without a release year specified.`;
+                                        const ranked = [...exactMatches].sort((a, b) => {
+                                            const scoreA = (a.vote_count || 0) * 2 + (a.popularity || 0);
+                                            const scoreB = (b.vote_count || 0) * 2 + (b.popularity || 0);
+                                            return scoreB - scoreA;
+                                        });
+                                        candidateSuggestions = ranked.map(c => this.toUnresolvedCandidate(c, candidateType === 'tv'));
+                                    }
+                                } catch (err: any) {
+                                    logger.warn(`[ListService] Multi-production verification check failed: ${err?.message}`);
+                                }
+                            }
+
                             if (!isPlausible) {
                                 logger.warn(`[ListService] Discarding IMDb ${imdbId} collision: "${candidateTitle}" does not match expected "${cleanTitle}"`);
-                                resolutionStatus = 'rejected';
-                                resolutionReason = `IMDb ID ${imdbId} returned "${candidateTitle}", which does not match expected title "${cleanTitle || rawTitle}"`;
+                                if (!resolutionStatus) resolutionStatus = 'rejected';
+                                if (!resolutionReason) resolutionReason = `IMDb ID ${imdbId} returned "${candidateTitle}", which does not match expected title "${cleanTitle || rawTitle}"`;
                             } else {
                                 tmdbId = candidateId;
                                 resolvedMediaType = candidateType;
@@ -305,7 +353,7 @@ export class ListService implements IListService {
                         }
 
                         if (candidateId && candidateType) {
-                            const isPlausible = await this.validateExternalIdMatch(
+                            let isPlausible = await this.validateExternalIdMatch(
                                 candidateId,
                                 candidateType,
                                 candidateTitle,
@@ -316,10 +364,44 @@ export class ListService implements IListService {
                                 resolvedMediaType
                             );
 
+                            // Collision guard for multi-production titles:
+                            if (isPlausible && !titleYear && cleanTitle) {
+                                try {
+                                    const searchCheck = await this.tmdbCacheService.getCachedSearch(cleanTitle, '1');
+                                    const searchResults = (searchCheck?.results || []).filter(
+                                        (r: any) => r.media_type === candidateType || (!r.media_type && (candidateType === 'movie' ? r.release_date : r.first_air_date))
+                                    );
+                                    const exactMatches = searchResults.filter((r: any) => {
+                                        const t = candidateType === 'tv' ? (r.name || r.original_name) : (r.title || r.original_title);
+                                        return isExactTitleMatch(t, cleanTitle);
+                                    });
+
+                                    const uniqueYears = new Set(exactMatches.map((r: any) => {
+                                        const d = candidateType === 'tv' ? r.first_air_date : r.release_date;
+                                        return d ? d.slice(0, 4) : '';
+                                    }).filter(Boolean));
+
+                                    if (uniqueYears.size > 1) {
+                                        logger.warn(`[ListService] Title "${cleanTitle}" has ${uniqueYears.size} different productions (${Array.from(uniqueYears).join(', ')}). Quarantining to manual match drawer.`);
+                                        isPlausible = false;
+                                        resolutionStatus = 'ambiguous';
+                                        resolutionReason = `Ambiguous: Multiple productions match "${cleanTitle}" (${Array.from(uniqueYears).join(', ')}) without a release year specified.`;
+                                        const ranked = [...exactMatches].sort((a, b) => {
+                                            const scoreA = (a.vote_count || 0) * 2 + (a.popularity || 0);
+                                            const scoreB = (b.vote_count || 0) * 2 + (b.popularity || 0);
+                                            return scoreB - scoreA;
+                                        });
+                                        candidateSuggestions = ranked.map(c => this.toUnresolvedCandidate(c, candidateType === 'tv'));
+                                    }
+                                } catch (err: any) {
+                                    logger.warn(`[ListService] Multi-production verification check failed: ${err?.message}`);
+                                }
+                            }
+
                             if (!isPlausible) {
                                 logger.warn(`[ListService] Discarding TVDB ${tvdbId} collision: "${candidateTitle}" does not match expected "${cleanTitle}"`);
-                                resolutionStatus = 'rejected';
-                                resolutionReason = `TVDB ID ${tvdbId} returned "${candidateTitle}", which does not match expected title "${cleanTitle || rawTitle}"`;
+                                if (!resolutionStatus) resolutionStatus = 'rejected';
+                                if (!resolutionReason) resolutionReason = `TVDB ID ${tvdbId} returned "${candidateTitle}", which does not match expected title "${cleanTitle || rawTitle}"`;
                             } else {
                                 tmdbId = candidateId;
                                 resolvedMediaType = candidateType;

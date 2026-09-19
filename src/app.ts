@@ -12,6 +12,8 @@ import listRouter from './modules/lists/routes/list.route.js'
 import userRouter from './modules/users/routes/user.route.js'
 import youtubeRouter from './modules/youtube/routes/youtube.route.js'
 import discussionRouter from './modules/discussions/routes/discussion.route.js'
+import importRoute from './modules/imports/routes/import.route.js'
+import feedbackRouter from './modules/feedback/routes/feedback.route.js'
 
 const app = express()
 
@@ -21,8 +23,8 @@ app.use(cors({
     credentials: true
 }))
 
-app.use(express.json())
-app.use(express.urlencoded({ extended: false }))
+app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ extended: false, limit: '50mb' }))
 app.use(cookieParser())
 
 app.use('/api/auth', authRouter)
@@ -32,6 +34,9 @@ app.use('/api/lists', listRouter)
 app.use('/api/users', userRouter)
 app.use('/api/youtube', youtubeRouter)
 app.use('/api/discussions', discussionRouter)
+app.use('/api/imports', importRoute)
+app.use('/imports', importRoute)
+app.use('/api/feedback', feedbackRouter)
 
 app.use(errorHandler)
 

@@ -39,5 +39,14 @@ export const env = {
   YOUTUBE_API_KEY: getEnv("YOUTUBE_API_KEY"),
 
   TMDB_API_KEY: getEnv("TMDB_API_KEY"),
-OMDB_API_KEY: getEnv("OMDB_API_KEY"),
+  OMDB_API_KEY: getEnv("OMDB_API_KEY"),
+
+  REDIS_URL: process.env.NODE_ENV === "production" 
+    ? getEnv("REDIS_URL") 
+    : (process.env.REDIS_URL || "redis://127.0.0.1:6379"),
+    
+  IMPORT_WORKER_CONCURRENCY: Number(process.env.IMPORT_WORKER_CONCURRENCY) || 2,
+
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || "",
+  TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || "",
 };
