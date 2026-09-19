@@ -42,6 +42,13 @@ import { IImportService } from "../modules/imports/services/import.service.inter
 import { ImportService } from "../modules/imports/services/import.service.js";
 import { ImportController } from "../modules/imports/controllers/import.controller.js";
 
+import { IFeedbackRepository } from "../modules/feedback/repositories/feedback.repository.interface.js";
+import { FeedbackRepository } from "../modules/feedback/repositories/feedback.repository.js";
+import { IFeedbackService } from "../modules/feedback/services/feedback.service.interface.js";
+import { FeedbackService } from "../modules/feedback/services/feedback.service.js";
+import { FeedbackController } from "../modules/feedback/controllers/feedback.controller.js";
+import { TelegramNotificationService } from "../modules/feedback/services/telegram.service.js";
+
 const container = new Container();
 
 container.bind<IAuthRepository>(TYPES.AuthRepository).to(AuthRepository);
@@ -71,6 +78,11 @@ container.bind<DiscussionController>(TYPES.DiscussionController).to(DiscussionCo
 container.bind<IUnresolvedImportRepository>(TYPES.UnresolvedImportRepository).to(UnresolvedImportRepository);
 container.bind<IImportService>(TYPES.ImportService).to(ImportService);
 container.bind<ImportController>(TYPES.ImportController).to(ImportController);
+
+container.bind<IFeedbackRepository>(TYPES.FeedbackRepository).to(FeedbackRepository);
+container.bind<IFeedbackService>(TYPES.FeedbackService).to(FeedbackService);
+container.bind<FeedbackController>(TYPES.FeedbackController).to(FeedbackController);
+container.bind<TelegramNotificationService>(TYPES.TelegramService).to(TelegramNotificationService);
 
 export { container };
 

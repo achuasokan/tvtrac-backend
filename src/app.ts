@@ -13,6 +13,7 @@ import userRouter from './modules/users/routes/user.route.js'
 import youtubeRouter from './modules/youtube/routes/youtube.route.js'
 import discussionRouter from './modules/discussions/routes/discussion.route.js'
 import importRoute from './modules/imports/routes/import.route.js'
+import feedbackRouter from './modules/feedback/routes/feedback.route.js'
 
 const app = express()
 
@@ -35,6 +36,7 @@ app.use('/api/youtube', youtubeRouter)
 app.use('/api/discussions', discussionRouter)
 app.use('/api/imports', importRoute)
 app.use('/imports', importRoute)
+app.use('/api/feedback', feedbackRouter)
 
 app.use(errorHandler)
 

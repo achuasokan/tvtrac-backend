@@ -8,6 +8,8 @@ import connectDB from './config/database.js'
 import app from './app.js'
 import { tvTimeImportWorker } from './modules/imports/workers/import.worker.js'
 import { tvTimeImportQueue } from './modules/imports/queues/import.queue.js'
+import { feedbackNotificationWorker } from './modules/feedback/workers/feedback.worker.js'
+import { feedbackNotificationQueue } from './modules/feedback/queues/feedback.queue.js'
 import { redisClient, queueRedisClient, workerRedisClient } from './config/redis.js'
 
 const startserver = async () => {
@@ -19,13 +21,18 @@ const startserver = async () => {
         httpServer.listen(env.PORT, () => {
             logger.info(`server running on http://localhost:${env.PORT}`)
             logger.info(`[BullMQ] tvtime-imports worker initialized with concurrency: ${env.IMPORT_WORKER_CONCURRENCY}`)
+            logger.info(`[BullMQ] feedback-notifications worker initialized`)
         })
 
         const gracefulShutdown = async (signal: string) => {
             logger.info(`Received ${signal}, starting graceful shutdown...`);
             try {
-                await tvTimeImportWorker.close();
-                await tvTimeImportQueue.close();
+                await Promise.allSettled([
+                    tvTimeImportWorker.close(),
+                    tvTimeImportQueue.close(),
+                    feedbackNotificationWorker.close(),
+                    feedbackNotificationQueue.close(),
+                ]);
                 await Promise.allSettled([
                     redisClient.quit(),
                     queueRedisClient.quit(),

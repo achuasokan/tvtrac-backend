@@ -22,4 +22,8 @@ export const TYPES = {
     UnresolvedImportRepository: Symbol.for("UnresolvedImportRepository"),
     ImportService: Symbol.for("ImportService"),
     ImportController: Symbol.for("ImportController"),
+    FeedbackRepository: Symbol.for("FeedbackRepository"),
+    FeedbackService: Symbol.for("FeedbackService"),
+    FeedbackController: Symbol.for("FeedbackController"),
+    TelegramService: Symbol.for("TelegramService"),
 };

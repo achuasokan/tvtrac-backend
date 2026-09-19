@@ -46,4 +46,7 @@ export const env = {
     : (process.env.REDIS_URL || "redis://127.0.0.1:6379"),
     
   IMPORT_WORKER_CONCURRENCY: Number(process.env.IMPORT_WORKER_CONCURRENCY) || 2,
+
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || "",
+  TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || "",
 };
