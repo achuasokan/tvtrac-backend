@@ -110,7 +110,7 @@ export class YoutubeService {
           await YoutubeCacheModel.findOneAndUpdate(
             { query: cacheKey },
             { $set: { ...result, query: cacheKey } },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
           );
         } catch (dbError) {
           console.error('Failed to save youtube cache to DB:', dbError);

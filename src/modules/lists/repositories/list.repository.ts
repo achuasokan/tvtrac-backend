@@ -23,7 +23,7 @@ export class ListRepository implements IListRepository {
         return await ListModel.findOneAndUpdate(
             { _id: listId, user: userId },
             { $set: updateData },
-            { new: true, runValidators: true }
+            { new: false, returnDocument: 'after', runValidators: true }
         ).exec();
     }
 
@@ -66,7 +66,7 @@ export class ListRepository implements IListRepository {
         return await ListModel.findOneAndUpdate(
             { _id: listId, user: userId },
             { $set: { items } },
-            { new: true, runValidators: true }
+            { new: false, returnDocument: 'after', runValidators: true }
         ).exec();
     }
 

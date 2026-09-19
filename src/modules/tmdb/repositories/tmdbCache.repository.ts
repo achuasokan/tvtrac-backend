@@ -15,7 +15,7 @@ export class TmdbCacheRepository implements ITmdbCacheRepository {
                 data,
                 lastUpdated: new Date()
             },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         ).exec();
     }
 }

@@ -496,26 +496,26 @@ export class TrackingService {
   }
 
   async getStats(userId: string) {
-    const allItems = await TrackedItemModel.find({ user: userId });
+    // Pure read — zero TMDB API calls. Uses saved runtimes with a 45-min fallback.
+    const allItems = await TrackedItemModel.find({ user: userId }).lean();
 
     const movies = allItems.filter(item => item.mediaType === 'movie');
-    const tvShows = allItems.filter(item => item.mediaType === 'tv' && (item.watchedEpisodes?.length || 0) > 0);
-
-    // Reconcile episodes for all TV shows and backfill missing runtimes
-    for (const show of tvShows) {
-      await this.reconcileWatchedEpisodes(show.tmdbId, show);
-      await this.backfillEpisodeRuntimes(show);
-    }
-    await this.backfillMovieRuntimes(movies);
+    const tvShows = allItems.filter(
+      item => item.mediaType === 'tv' && (item.watchedEpisodes?.length || 0) > 0,
+    );
 
     const totalMovies = movies.length;
     const totalMovieMinutes = movies.reduce((sum, m) => sum + (m.movieRuntime || 0), 0);
 
-    const totalEpisodes = tvShows.reduce((sum, show) => sum + (show.watchedEpisodes?.length || 0), 0);
-    const totalEpisodeMinutes = tvShows.reduce(
-      (sum, show) => sum + this.getShowEpisodeMinutes(show),
+    const totalEpisodes = tvShows.reduce(
+      (sum, show) => sum + (show.watchedEpisodes?.length || 0),
       0,
     );
+    const totalEpisodeMinutes = tvShows.reduce((sum, show) => {
+      const eps: { runtime?: number }[] = show.watchedEpisodes || [];
+      const showFallback: number = (show as any).episodeRuntime || 45;
+      return sum + eps.reduce((s, ep) => s + (ep.runtime || showFallback), 0);
+    }, 0);
 
     return {
       totalMovies,

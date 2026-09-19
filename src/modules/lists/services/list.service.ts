@@ -84,7 +84,7 @@ export class ListService implements IListService {
                     items: [],
                 }
             },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
 
         if (data.description && !list.description) {
