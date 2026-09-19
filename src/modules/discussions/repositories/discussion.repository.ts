@@ -34,7 +34,7 @@ export class DiscussionRepository implements IDiscussionRepository {
     const reaction = await EpisodeReactionModel.findOneAndUpdate(
       filter,
       { $set: update },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
     return reaction;
@@ -170,7 +170,7 @@ export class DiscussionRepository implements IDiscussionRepository {
           commentId: typeof commentId === 'string' ? new Types.ObjectId(commentId) : commentId,
         },
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
   }
 
@@ -182,7 +182,7 @@ export class DiscussionRepository implements IDiscussionRepository {
     return DiscussionMediaModel.findOneAndUpdate(
       { commentId: new Types.ObjectId(commentId) },
       { $set: { status: 'pending_deletion' } },
-      { new: true }
+      { returnDocument: 'after' }
     );
   }
 
@@ -424,7 +424,7 @@ export class DiscussionRepository implements IDiscussionRepository {
     const reaction = await MovieReactionModel.findOneAndUpdate(
       filter,
       { $set: update },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
     return reaction;

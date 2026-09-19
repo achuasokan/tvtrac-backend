@@ -39,7 +39,7 @@ export class AuthRepository implements IAuthRepository {
             id,
             data,
             {
-                new: true,
+                returnDocument: 'after',
             }
         );
     }

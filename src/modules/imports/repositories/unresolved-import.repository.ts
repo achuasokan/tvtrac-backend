@@ -55,7 +55,7 @@ export class UnresolvedImportRepository implements IUnresolvedImportRepository {
           resolvedMediaType,
         },
       },
-      { new: true }
+      { returnDocument: 'after' }
     ).exec();
   }
 }

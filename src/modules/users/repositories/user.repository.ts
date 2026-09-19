@@ -13,7 +13,7 @@ export class UserRepository implements IUserRepository {
     }
 
     async update(id: string, data: Partial<any>): Promise<UserDocument | null> {
-        return await UserModel.findByIdAndUpdate(id, data, { new: true });
+        return await UserModel.findByIdAndUpdate(id, data, { returnDocument: 'after' });
     }
 
     async addFavorite(id: string, type: 'shows' | 'movies', tmdbId: string): Promise<UserDocument | null> {
@@ -21,7 +21,7 @@ export class UserRepository implements IUserRepository {
         return await UserModel.findByIdAndUpdate(
             id,
             { $addToSet: { [field]: tmdbId } },
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 
@@ -30,7 +30,7 @@ export class UserRepository implements IUserRepository {
         return await UserModel.findByIdAndUpdate(
             id,
             { $pull: { [field]: tmdbId } },
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 
@@ -39,7 +39,7 @@ export class UserRepository implements IUserRepository {
         return await UserModel.findByIdAndUpdate(
             id,
             { $addToSet: { [field]: tmdbId } },
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 
@@ -48,7 +48,7 @@ export class UserRepository implements IUserRepository {
         return await UserModel.findByIdAndUpdate(
             id,
             { $pull: { [field]: tmdbId } },
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 }
