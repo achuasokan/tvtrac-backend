@@ -39,6 +39,9 @@ export const feedbackNotificationWorker = new Worker<FeedbackNotificationJobData
   {
     connection: workerRedisClient,
     concurrency: 1,
+    stalledInterval: 300000, // 5 minutes instead of default 30s
+    drainDelay: 30, // Wait 30s when queue is empty before checking again
+    lockDuration: 60000, // 60s lock duration
   }
 );
 
