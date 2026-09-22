@@ -111,7 +111,14 @@ export async function processTvTimeImport(job: Job<TvTimeImportJobData>): Promis
 
     logger.info(`[ImportWorker] Parsed ${totalRows} total source items (episodes: ${totalEpisodes}, movies: ${totalMovies}, listItems: ${totalListItems})`);
 
-    const updateProgress = async (step: string) => {
+    let lastProgressUpdate = 0;
+    const updateProgress = async (step: string, force = false) => {
+      const now = Date.now();
+      // Throttle progress updates to at most once every 1500ms to preserve Redis command quota
+      if (!force && now - lastProgressUpdate < 1500) {
+        return;
+      }
+      lastProgressUpdate = now;
       await job.updateProgress({
         processed,
         total: totalRows,
@@ -140,7 +147,7 @@ export async function processTvTimeImport(job: Job<TvTimeImportJobData>): Promis
       } as TvTimeImportJobProgress);
     };
 
-    await updateProgress("Starting batch processing...");
+    await updateProgress("Starting batch processing...", true);
 
     // 3. Process Episodes Batches
     const epBatches = parseResult.episodes.batches;
@@ -417,10 +424,9 @@ export const tvTimeImportWorker = new Worker<TvTimeImportJobData, any, string>(
   {
     connection: workerRedisClient,
     concurrency: env.IMPORT_WORKER_CONCURRENCY,
-    limiter: {
-      max: 35, // Rate limit: max 35 batches/reqs per sec to respect TMDB API
-      duration: 1000,
-    },
+    stalledInterval: 300000, // 5 minutes instead of default 30s (saves ~90% stalled check commands)
+    drainDelay: 30, // Wait 30s when queue is empty before checking again
+    lockDuration: 60000, // 60s lock duration (renews every 30s instead of 15s)
   }
 );
 
